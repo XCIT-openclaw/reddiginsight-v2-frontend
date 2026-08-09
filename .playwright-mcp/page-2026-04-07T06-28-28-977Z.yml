@@ -1,0 +1,102 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e22]:
+    - navigation [ref=e23]:
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - link "ReddigInsight" [ref=e27] [cursor=pointer]:
+            - /url: /dashboard
+            - img [ref=e28]
+            - generic [ref=e30]: ReddigInsight
+          - generic [ref=e31]:
+            - link "Dashboard" [ref=e32] [cursor=pointer]:
+              - /url: /dashboard
+              - img [ref=e33]
+              - text: Dashboard
+            - link "Reports" [ref=e35] [cursor=pointer]:
+              - /url: /reports
+              - img [ref=e36]
+              - text: Reports
+            - link "Pricing" [ref=e39] [cursor=pointer]:
+              - /url: /pricing
+              - img [ref=e40]
+              - text: Pricing
+        - generic [ref=e42]:
+          - generic [ref=e43]:
+            - generic [ref=e44]: "Credits:"
+            - generic [ref=e45]: "1"
+          - button "TE" [ref=e46]:
+            - generic [ref=e48]: TE
+    - main [ref=e49]:
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - heading "Dashboard" [level=1] [ref=e52]
+          - paragraph [ref=e53]: Analyze Reddit subreddits to uncover insights and trends
+        - generic [ref=e54]:
+          - generic [ref=e57]:
+            - generic [ref=e58]:
+              - generic [ref=e59]: Available Credits
+              - img [ref=e61]
+            - generic [ref=e63]:
+              - generic [ref=e64]: "1"
+              - paragraph [ref=e65]: Ready to analyze
+          - generic [ref=e68]:
+            - generic [ref=e69]:
+              - generic [ref=e70]: Reports Generated
+              - img [ref=e72]
+            - generic [ref=e75]:
+              - generic [ref=e76]: "3"
+              - paragraph [ref=e77]: Total reports created
+          - generic [ref=e80]:
+            - generic [ref=e81]:
+              - generic [ref=e82]: Processing
+              - img [ref=e84]
+            - generic [ref=e87]:
+              - generic [ref=e88]: "2"
+              - paragraph [ref=e89]: Reports in progress
+        - generic [ref=e90]:
+          - generic [ref=e91]:
+            - generic [ref=e92]: Create New Report
+            - generic [ref=e93]: Enter a subreddit name to generate an AI-powered analysis
+          - generic [ref=e95]:
+            - generic [ref=e96]:
+              - generic [ref=e97]: Subreddit
+              - generic [ref=e98]:
+                - generic [ref=e99]: r/
+                - textbox "Subreddit" [ref=e100]:
+                  - /placeholder: programming
+            - button "Generate Report (1 credit)" [disabled]
+        - generic [ref=e101]:
+          - generic [ref=e102]:
+            - generic [ref=e103]: Recent Reports
+            - generic [ref=e104]: Your latest subreddit analyses
+          - generic [ref=e106]:
+            - generic [ref=e108]:
+              - generic [ref=e109]:
+                - img [ref=e111]
+                - generic [ref=e113]: r/programming
+                - generic [ref=e114]:
+                  - img
+                  - text: completed
+              - generic [ref=e115]:
+                - generic [ref=e116]: 4/6/2026
+                - link "View Report" [ref=e117] [cursor=pointer]:
+                  - /url: /reports/1
+                  - button "View Report" [ref=e118]
+            - generic [ref=e120]:
+              - generic [ref=e121]:
+                - img [ref=e123]
+                - generic [ref=e125]: r/startups
+                - generic [ref=e126]:
+                  - img
+                  - text: processing
+              - generic [ref=e128]: 4/7/2026
+            - generic [ref=e130]:
+              - generic [ref=e131]:
+                - img [ref=e133]
+                - generic [ref=e135]: r/artificial
+                - generic [ref=e136]:
+                  - img
+                  - text: pending
+              - generic [ref=e138]: 4/7/2026
+  - region "Notifications alt+T"
+  - alert [ref=e21]

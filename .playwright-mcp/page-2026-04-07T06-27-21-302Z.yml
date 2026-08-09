@@ -1,0 +1,136 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e5]:
+        - link "ReddigInsight" [ref=e6] [cursor=pointer]:
+          - /url: /
+          - img [ref=e8]
+          - generic [ref=e10]: ReddigInsight
+        - generic [ref=e11]:
+          - link "Sign in" [ref=e12] [cursor=pointer]:
+            - /url: /login
+          - link "Get Started" [ref=e13] [cursor=pointer]:
+            - /url: /signup
+            - button "Get Started" [ref=e14]
+    - generic [ref=e18]:
+      - generic [ref=e19]:
+        - img
+        - text: AI-Powered Reddit Analysis
+      - heading "Understand Any Subreddit In Seconds" [level=1] [ref=e20]:
+        - generic [ref=e21]: Understand Any Subreddit
+        - generic [ref=e22]: In Seconds
+      - paragraph [ref=e23]: Unlock valuable insights from Reddit communities. Analyze sentiment, discover trends, and extract key topics with our ultra-fast AI-powered platform.
+      - generic [ref=e24]:
+        - link "Start Free Analysis" [ref=e25] [cursor=pointer]:
+          - /url: /signup
+          - button "Start Free Analysis" [ref=e26]:
+            - text: Start Free Analysis
+            - img
+        - link "Learn More" [ref=e27] [cursor=pointer]:
+          - /url: "#features"
+          - button "Learn More" [active] [ref=e28]
+      - paragraph [ref=e29]: 1 free credit included • No credit card required • Instant access
+    - generic [ref=e36]:
+      - generic [ref=e37]:
+        - img [ref=e39]
+        - generic [ref=e42]: Analyzing r/programming
+      - generic [ref=e43]:
+        - generic [ref=e44]:
+          - generic [ref=e45]: 2,847
+          - generic [ref=e46]: Posts Analyzed
+        - generic [ref=e47]:
+          - generic [ref=e48]: +68%
+          - generic [ref=e49]: Sentiment Score
+        - generic [ref=e50]:
+          - generic [ref=e51]: "24"
+          - generic [ref=e52]: Top Keywords
+      - generic [ref=e54]:
+        - generic [ref=e55]: Positive
+        - generic [ref=e56]: Neutral
+        - generic [ref=e57]: Negative
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - img [ref=e66]
+          - generic [ref=e68]: Powerful Features
+        - heading "Advanced Reddit Analysis Tools" [level=2] [ref=e69]
+        - paragraph [ref=e70]: Everything you need to understand and leverage Reddit communities effectively
+      - generic [ref=e71]:
+        - generic [ref=e74]:
+          - img [ref=e76]
+          - heading "Sentiment Analysis" [level=3] [ref=e78]
+          - paragraph [ref=e79]: Understand the emotional tone of any subreddit with AI-powered sentiment scoring.
+        - generic [ref=e82]:
+          - img [ref=e84]
+          - heading "Trend Detection" [level=3] [ref=e87]
+          - paragraph [ref=e88]: Identify trending topics and emerging discussions before they go viral.
+        - generic [ref=e91]:
+          - img [ref=e93]
+          - heading "Keyword Extraction" [level=3] [ref=e95]
+          - paragraph [ref=e96]: Automatically extract the most relevant keywords and topics from posts.
+        - generic [ref=e99]:
+          - img [ref=e101]
+          - heading "AI Insights" [level=3] [ref=e109]
+          - paragraph [ref=e110]: Get actionable insights powered by advanced language models.
+    - generic [ref=e113]:
+      - generic [ref=e114]:
+        - heading "Why Choose ReddigInsight?" [level=2] [ref=e115]
+        - paragraph [ref=e116]: Our platform provides the most comprehensive Reddit analysis tools available, helping you make data-driven decisions.
+        - generic [ref=e117]:
+          - generic [ref=e118]:
+            - img [ref=e120]
+            - generic [ref=e123]: Analyze any public subreddit in seconds
+          - generic [ref=e124]:
+            - img [ref=e126]
+            - generic [ref=e129]: Export reports to PDF for sharing
+          - generic [ref=e130]:
+            - img [ref=e132]
+            - generic [ref=e135]: No Reddit API key required
+          - generic [ref=e136]:
+            - img [ref=e138]
+            - generic [ref=e141]: Pay only for what you use
+          - generic [ref=e142]:
+            - img [ref=e144]
+            - generic [ref=e147]: GDPR compliant data handling
+          - generic [ref=e148]:
+            - img [ref=e150]
+            - generic [ref=e153]: 24/7 support available
+      - generic [ref=e155]:
+        - generic [ref=e156]:
+          - generic [ref=e157]: Your Balance
+          - generic [ref=e158]:
+            - img [ref=e159]
+            - text: 1 Free Credit
+        - generic [ref=e161]: $9.9
+        - generic [ref=e162]: for 5 powerful analysis reports
+        - button "Get Started Now" [ref=e163]
+        - paragraph [ref=e164]: Join thousands of marketers who trust our platform
+    - generic [ref=e167]:
+      - heading "Ready to Transform Your Reddit Analytics?" [level=2] [ref=e168]
+      - paragraph [ref=e169]: Start with 1 free credit. No credit card required. Experience the power of AI-driven insights instantly.
+      - generic [ref=e170]:
+        - link "Create Your Free Account" [ref=e171] [cursor=pointer]:
+          - /url: /signup
+          - button "Create Your Free Account" [ref=e172]:
+            - img
+            - text: Create Your Free Account
+            - img
+        - link "View Pricing Plans" [ref=e173] [cursor=pointer]:
+          - /url: /pricing
+          - button "View Pricing Plans" [ref=e174]
+    - contentinfo [ref=e175]:
+      - generic [ref=e176]:
+        - generic [ref=e177]:
+          - generic [ref=e178]:
+            - img [ref=e180]
+            - generic [ref=e182]: ReddigInsight
+          - generic [ref=e183]:
+            - link "Pricing" [ref=e184] [cursor=pointer]:
+              - /url: /pricing
+            - link "Privacy Policy" [ref=e185] [cursor=pointer]:
+              - /url: "#"
+            - link "Terms of Service" [ref=e186] [cursor=pointer]:
+              - /url: "#"
+        - generic [ref=e187]: © 2026 ReddigInsight. All rights reserved. Made with ❤️ for AI-powered insights.
+  - region "Notifications alt+T"
+  - alert [ref=e188]

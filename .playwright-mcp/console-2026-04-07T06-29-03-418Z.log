@@ -1,0 +1,20 @@
+[    2125ms] Error: Minified React error #418; visit https://react.dev/errors/418?args[]=text&args[]= for the full message or use the non-minified dev environment for full errors and additional helpful warnings.
+    at rX (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:47213)
+    at rY (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:48246)
+    at https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:142594
+    at sh (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:147755)
+    at sd (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:139005)
+    at https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:133830
+    at se (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:133931)
+    at s$ (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:160495)
+    at MessagePort.O (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:8660)
+[   50080ms] [ERROR] Mixed Content: The page at 'https://reddiginsight-v2.vercel.app/chat' was loaded over HTTPS, but requested an insecure resource 'http://106.15.90.140:3001/api/chat'. This request has been blocked; the content must be served over HTTPS. @ https://reddiginsight-v2.vercel.app/_next/static/chunks/090p1rm20jdee.js:0
+[   50185ms] [ERROR] Error sending message: TypeError: Failed to fetch
+    at u (https://reddiginsight-v2.vercel.app/_next/static/chunks/090p1rm20jdee.js:1:5685)
+    at n (https://reddiginsight-v2.vercel.app/_next/static/chunks/090p1rm20jdee.js:1:3384)
+    at sJ (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:162749)
+    at https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:168645
+    at tD (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:30679)
+    at s4 (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:163982)
+    at fz (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:200718)
+    at fT (https://reddiginsight-v2.vercel.app/_next/static/chunks/0l3ryf7l-o42a.js:1:200540) @ https://reddiginsight-v2.vercel.app/_next/static/chunks/090p1rm20jdee.js:0

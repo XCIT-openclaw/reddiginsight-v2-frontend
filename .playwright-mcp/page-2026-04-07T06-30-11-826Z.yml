@@ -1,0 +1,25 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - banner [ref=e4]:
+      - heading "AI Assistant" [level=1] [ref=e5]
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e10]: AI
+        - generic [ref=e11]:
+          - generic [ref=e12]: 你好！我是 ReddigInsight 的 AI 顾问。我可以帮你分析 Reddit 上对某个产品或想法的讨论。 你想分析什么？可以是一个产品、一个想法，或者你想了解的话题。
+          - generic [ref=e13]: 02:29 PM
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: I want to analyze AI programming tools
+          - generic [ref=e22]: 02:29 PM
+        - generic [ref=e24]: YOU
+      - generic [ref=e25]:
+        - generic [ref=e27]: AI
+        - generic [ref=e28]:
+          - generic [ref=e29]: 抱歉，发生了一些错误，请稍后再试。
+          - generic [ref=e30]: 02:29 PM
+    - generic [ref=e15]:
+      - textbox "Type your message..." [ref=e16]
+      - button "Send" [disabled] [ref=e17]
+  - region "Notifications alt+T"
+  - alert [ref=e18]

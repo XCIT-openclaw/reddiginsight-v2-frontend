@@ -1,0 +1,181 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e72]:
+    - generic [ref=e73]:
+      - generic [ref=e74]:
+        - link [ref=e75] [cursor=pointer]:
+          - /url: /reports
+          - button [ref=e76]:
+            - img
+        - generic [ref=e77]:
+          - heading "r/programming" [level=1] [ref=e78]
+          - paragraph [ref=e79]: Generated on 4/6/2026
+      - generic [ref=e80]:
+        - button "AI Analysis" [ref=e81]:
+          - img
+          - text: AI Analysis
+        - button "Share" [ref=e82]:
+          - img
+          - text: Share
+    - generic [ref=e83]:
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - generic [ref=e86]: Discussion Summary
+          - generic [ref=e87]: Key insights from the analyzed discussions
+        - list [ref=e89]:
+          - listitem [ref=e90]:
+            - generic [ref=e91]: •
+            - generic [ref=e92]: Active engagement on product features
+          - listitem [ref=e93]:
+            - generic [ref=e94]: •
+            - generic [ref=e95]: Mixed feedback on user experience aspects
+          - listitem [ref=e96]:
+            - generic [ref=e97]: •
+            - generic [ref=e98]: Positive sentiment around customer support
+          - listitem [ref=e99]:
+            - generic [ref=e100]: •
+            - generic [ref=e101]: Concerns raised about pricing model
+          - listitem [ref=e102]:
+            - generic [ref=e103]: •
+            - generic [ref=e104]: Feature requests for integration capabilities
+      - generic [ref=e105]:
+        - generic [ref=e106]:
+          - generic [ref=e107]: Key Quotes
+          - generic [ref=e108]: Representative comments from the community
+        - generic [ref=e110]:
+          - generic [ref=e111]:
+            - blockquote [ref=e112]: "\"The new decorator features in TypeScript 5.0 could revolutionize how we handle dependency injection...\""
+            - generic [ref=e113]: — developer_jane (Discussion about TypeScript improvements)
+          - generic [ref=e114]:
+            - blockquote [ref=e115]: "\"After months of fighting with VS Code performance, the switch to Neovim was a breath of fresh air.\""
+            - generic [ref=e116]: — vim_enthusiast (Editor configuration thread)
+      - generic [ref=e117]:
+        - generic [ref=e118]:
+          - generic [ref=e119]: Influence Score
+          - generic [ref=e120]: Overall impact factor of the discussions
+        - generic [ref=e125]: 63.0%
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - generic [ref=e128]: Action Recommendations
+          - generic [ref=e129]: Suggested responses based on analysis
+        - generic [ref=e131]:
+          - generic [ref=e133]:
+            - generic [ref=e134]:
+              - generic [ref=e135]: Suggest
+              - paragraph [ref=e136]: Highly engaged positive discussion about core product features
+            - generic [ref=e137]: medium
+          - generic [ref=e139]:
+            - generic [ref=e140]:
+              - generic [ref=e141]: Reply
+              - paragraph [ref=e142]: Negative sentiment about development friction needs addressing
+            - generic [ref=e143]: high
+    - generic [ref=e144]:
+      - generic [ref=e145]:
+        - generic [ref=e147]: Total Posts Analyzed
+        - generic [ref=e149]: "25"
+      - generic [ref=e150]:
+        - generic [ref=e152]: Average Sentiment
+        - generic [ref=e154]:
+          - generic [ref=e155]: 42%
+          - img [ref=e156]
+      - generic [ref=e159]:
+        - generic [ref=e161]: Sentiment Breakdown
+        - generic [ref=e163]:
+          - generic [ref=e164]: "+15"
+          - generic [ref=e165]: "5"
+          - generic [ref=e166]: "-5"
+      - generic [ref=e167]:
+        - generic [ref=e169]: Top Keywords
+        - generic [ref=e171]:
+          - generic [ref=e172]: typescript
+          - generic [ref=e173]: react
+          - generic [ref=e174]: programming
+    - generic [ref=e175]:
+      - generic [ref=e176]:
+        - generic [ref=e177]: Sentiment Distribution
+        - generic [ref=e178]: Overall sentiment analysis of posts
+      - generic [ref=e181]:
+        - generic [ref=e182]: Negative
+        - generic [ref=e183]: Neutral
+        - generic [ref=e184]: Positive
+    - generic [ref=e189]:
+      - generic [ref=e190]:
+        - generic [ref=e191]: Top Posts
+        - generic [ref=e192]: Most engaged posts from r/programming
+      - generic [ref=e194]:
+        - generic [ref=e195]:
+          - generic [ref=e196]:
+            - heading "What are your thoughts on the new TypeScript 5.0 features?" [level=3] [ref=e197]
+            - link "Link ✓" [ref=e198] [cursor=pointer]:
+              - /url: https://reddit.com/r/programming/comments/abc123
+              - text: Link
+              - img [ref=e199]
+              - generic "Verified source linked" [ref=e203]:
+                - generic [ref=e204]: ✓
+          - generic [ref=e205]:
+            - generic [ref=e206]:
+              - img [ref=e207]
+              - text: 1,247
+            - generic [ref=e209]:
+              - img [ref=e210]
+              - text: "342"
+            - generic [ref=e212]:
+              - img [ref=e213]
+              - text: 4/7/2026
+            - generic [ref=e216]: positive
+          - generic [ref=e217]:
+            - generic [ref=e218]: typescript
+            - generic [ref=e219]: features
+            - generic [ref=e220]: decorators
+            - generic [ref=e221]: programming
+        - generic [ref=e222]:
+          - generic [ref=e223]:
+            - heading "Why I switched from VS Code to Neovim" [level=3] [ref=e224]
+            - link "Link ✓" [ref=e225] [cursor=pointer]:
+              - /url: https://reddit.com/r/programming/comments/def456
+              - text: Link
+              - img [ref=e226]
+              - generic "Verified source linked" [ref=e230]:
+                - generic [ref=e231]: ✓
+          - generic [ref=e232]:
+            - generic [ref=e233]:
+              - img [ref=e234]
+              - text: "892"
+            - generic [ref=e236]:
+              - img [ref=e237]
+              - text: "156"
+            - generic [ref=e239]:
+              - img [ref=e240]
+              - text: 4/7/2026
+            - generic [ref=e243]: neutral
+          - generic [ref=e244]:
+            - generic [ref=e245]: neovim
+            - generic [ref=e246]: vscode
+            - generic [ref=e247]: editor
+            - generic [ref=e248]: configuration
+        - generic [ref=e249]:
+          - generic [ref=e250]:
+            - heading "Frustrated with legacy code at work" [level=3] [ref=e251]
+            - link "Link ✓" [ref=e252] [cursor=pointer]:
+              - /url: https://reddit.com/r/programming/comments/ghi789
+              - text: Link
+              - img [ref=e253]
+              - generic "Verified source linked" [ref=e257]:
+                - generic [ref=e258]: ✓
+          - generic [ref=e259]:
+            - generic [ref=e260]:
+              - img [ref=e261]
+              - text: "534"
+            - generic [ref=e263]:
+              - img [ref=e264]
+              - text: "89"
+            - generic [ref=e266]:
+              - img [ref=e267]
+              - text: 4/7/2026
+            - generic [ref=e270]: negative
+          - generic [ref=e271]:
+            - generic [ref=e272]: legacy
+            - generic [ref=e273]: code
+            - generic [ref=e274]: frustration
+            - generic [ref=e275]: work
+  - region "Notifications alt+T"
+  - alert [ref=e71]

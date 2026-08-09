@@ -1,0 +1,20 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - heading "Reports" [level=1] [ref=e5]
+        - paragraph [ref=e6]: View and manage your subreddit analysis reports
+      - link "Create New Report" [ref=e7] [cursor=pointer]:
+        - /url: /dashboard
+        - button "Create New Report" [ref=e8]
+    - generic [ref=e9]:
+      - img [ref=e10]
+      - textbox "Search by subreddit..." [ref=e13]
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - img [ref=e17]
+          - text: Completed
+        - generic [ref=e20]: 0 report(s) ready to view
+      - generic [ref=e22]: No completed reports yet
+  - region "Notifications alt+T"

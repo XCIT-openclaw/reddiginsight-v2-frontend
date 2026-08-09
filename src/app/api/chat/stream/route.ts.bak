@@ -1,0 +1,116 @@
+import { NextRequest, NextResponse } from 'next/server';
+
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+
+/**
+ * Chat Stream API Route
+ * 
+ * Architecture: Vercel serverless ‚Ü?Alibaba Cloud backend
+ * This avoids Mixed Content (HTTPS frontend cannot call HTTP backend directly)
+ * 
+ * Flow:
+ * 1. Frontend (HTTPS) ‚Ü?This API Route (HTTPS)
+ * 2. This Route ‚Ü?Alibaba backend (HTTP) - serverless‰∏çÂèóÊµèËßàÂô®ÈôêÂà?
+ * 3. Stream SSE response back to frontend
+ */
+
+export async function POST(request: NextRequest) {
+  console.log('=== Chat Stream API Route Called ===');
+  
+  try {
+    // Get Supabase auth token from request body
+    const body = await request.json();
+    const { messages } = body;
+    
+    if (!messages || !Array.isArray(messages)) {
+      return NextResponse.json(
+        { error: 'Messages array is required' },
+        { status: 400 }
+      );
+    }
+    
+    // Get auth token from Authorization header
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json(
+        { error: 'Authorization header required' },
+        { status: 401 }
+      );
+    }
+    
+    const token = authHeader.slice(7); // Remove 'Bearer ' prefix
+    
+    // Call Alibaba Cloud backend (HTTP)
+    // Serverless function can call HTTP without Mixed Content restriction
+    const backendUrl = process.env.BACKEND_URL || 'http://106.15.90.140:3001';
+    
+    console.log('Calling backend:', `${backendUrl}/api/chat/stream`);
+    
+    const backendResponse = await fetch(`${backendUrl}/api/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ messages }),
+    });
+    
+    if (!backendResponse.ok) {
+      const errorText = await backendResponse.text();
+      console.error('Backend error:', backendResponse.status, errorText);
+      return NextResponse.json(
+        { error: `Backend error: ${backendResponse.status}` },
+        { status: backendResponse.status }
+      );
+    }
+    
+    // Stream SSE response back to frontend
+    const reader = backendResponse.body?.getReader();
+    if (!reader) {
+      return NextResponse.json(
+        { error: 'No response body from backend' },
+        { status: 500 }
+      );
+    }
+    
+    // Create a TransformStream to forward SSE data
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+              controller.close();
+              break;
+            }
+            
+            controller.enqueue(value);
+          }
+        } catch (error) {
+          console.error('Stream error:', error);
+          controller.error(error);
+        }
+      },
+    });
+    
+    // Return streaming response
+    return new NextResponse(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      },
+    });
+    
+  } catch (error) {
+    console.error('Chat stream error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}

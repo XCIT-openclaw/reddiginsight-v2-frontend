@@ -1,0 +1,113 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "Simple, Transparent Pricing" [level=1] [ref=e5]
+      - paragraph [ref=e6]: Choose a credit pack that fits your needs. Each credit lets you analyze one subreddit.
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - generic [ref=e10]: Most Popular
+        - generic [ref=e11]:
+          - generic [ref=e12]: Starter
+          - generic [ref=e13]:
+            - generic [ref=e14]: $9.9
+            - text: one-time
+          - generic [ref=e15]: 5 credits · $1.98/credit
+        - list [ref=e17]:
+          - listitem [ref=e18]:
+            - img [ref=e19]
+            - generic [ref=e21]: 5 subreddit analyses
+          - listitem [ref=e22]:
+            - img [ref=e23]
+            - generic [ref=e25]: AI-powered insights
+          - listitem [ref=e26]:
+            - img [ref=e27]
+            - generic [ref=e29]: Sentiment analysis
+          - listitem [ref=e30]:
+            - img [ref=e31]
+            - generic [ref=e33]: Export to PDF
+          - listitem [ref=e34]:
+            - img [ref=e35]
+            - generic [ref=e37]: Email support
+        - button "Get 5 Credits" [ref=e39]:
+          - img
+          - text: Get 5 Credits
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - generic [ref=e42]: Pro
+          - generic [ref=e43]:
+            - generic [ref=e44]: $24.9
+            - text: one-time
+          - generic [ref=e45]: 15 credits · $1.66/credit
+        - list [ref=e47]:
+          - listitem [ref=e48]:
+            - img [ref=e49]
+            - generic [ref=e51]: 15 subreddit analyses
+          - listitem [ref=e52]:
+            - img [ref=e53]
+            - generic [ref=e55]: AI-powered insights
+          - listitem [ref=e56]:
+            - img [ref=e57]
+            - generic [ref=e59]: Sentiment analysis
+          - listitem [ref=e60]:
+            - img [ref=e61]
+            - generic [ref=e63]: Export to PDF
+          - listitem [ref=e64]:
+            - img [ref=e65]
+            - generic [ref=e67]: Priority support
+          - listitem [ref=e68]:
+            - img [ref=e69]
+            - generic [ref=e71]: Advanced keyword analysis
+        - button "Get 15 Credits" [ref=e73]:
+          - img
+          - text: Get 15 Credits
+      - generic [ref=e74]:
+        - generic [ref=e75]:
+          - generic [ref=e76]: Enterprise
+          - generic [ref=e77]:
+            - generic [ref=e78]: $69.9
+            - text: one-time
+          - generic [ref=e79]: 50 credits · $1.40/credit
+        - list [ref=e81]:
+          - listitem [ref=e82]:
+            - img [ref=e83]
+            - generic [ref=e85]: 50 subreddit analyses
+          - listitem [ref=e86]:
+            - img [ref=e87]
+            - generic [ref=e89]: AI-powered insights
+          - listitem [ref=e90]:
+            - img [ref=e91]
+            - generic [ref=e93]: Sentiment analysis
+          - listitem [ref=e94]:
+            - img [ref=e95]
+            - generic [ref=e97]: Export to PDF & CSV
+          - listitem [ref=e98]:
+            - img [ref=e99]
+            - generic [ref=e101]: Dedicated support
+          - listitem [ref=e102]:
+            - img [ref=e103]
+            - generic [ref=e105]: API access
+          - listitem [ref=e106]:
+            - img [ref=e107]
+            - generic [ref=e109]: Custom reports
+        - button "Get 50 Credits" [ref=e111]:
+          - img
+          - text: Get 50 Credits
+    - generic [ref=e112]:
+      - heading "Frequently Asked Questions" [level=2] [ref=e113]
+      - generic [ref=e114]:
+        - generic [ref=e115]:
+          - heading "What is a credit?" [level=3] [ref=e116]
+          - paragraph [ref=e117]: One credit allows you to analyze one subreddit. The analysis includes sentiment analysis, keyword extraction, and AI-powered insights.
+        - generic [ref=e118]:
+          - heading "Do credits expire?" [level=3] [ref=e119]
+          - paragraph [ref=e120]: No, your credits never expire. Use them whenever you need.
+        - generic [ref=e121]:
+          - heading "What payment methods do you accept?" [level=3] [ref=e122]
+          - paragraph [ref=e123]: We accept all major credit cards through our secure payment provider, Creem.
+        - generic [ref=e124]:
+          - heading "Is there a refund policy?" [level=3] [ref=e125]
+          - paragraph [ref=e126]: If you're not satisfied with your purchase, contact us within 7 days for a full refund.
+    - generic [ref=e127]:
+      - paragraph [ref=e128]: New users get 1 free credit to start!
+      - button "Create Free Account" [ref=e129]
+  - region "Notifications alt+T"

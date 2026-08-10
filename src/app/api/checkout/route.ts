@@ -22,11 +22,15 @@ const SUBSCRIPTION_PLANS: Record<string, { productId: string; credits: number; n
 }
 
 function getCreemApiUrl(apiKey: string): string {
-  // Auto-detect test mode from key prefix
-  if (apiKey.startsWith('creem_test_')) {
-    return 'https://test-api.creem.io/v1/checkout/sessions'
+  // Use CREEM_API_URL env var if set, otherwise auto-detect from key prefix
+  const baseUrl = process.env.CREEM_API_URL;
+  if (baseUrl) {
+    return baseUrl + '/v1/checkout/sessions';
   }
-  return process.env.CREEM_API_URL || 'https://api.creem.io/v1/checkout/sessions'
+  if (apiKey.startsWith('creem_test_')) {
+    return 'https://test-api.creem.io/v1/checkout/sessions';
+  }
+  return 'https://api.creem.io/v1/checkout/sessions';
 }
 
 export async function POST(request: NextRequest) {

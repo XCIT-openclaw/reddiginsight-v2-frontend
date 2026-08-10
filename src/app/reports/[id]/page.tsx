@@ -547,10 +547,10 @@ export default function ReportDetailPage() {
               />
               <p className="mt-4 text-sm text-muted-foreground text-center">
                 {(report.pmf_score ?? 0) >= 7 
-                  ? 'Strong Product-Market Fit: Customers love your product!' 
+                  ? 'High community interest — If validating a product idea, this signals strong demand. If monitoring brand sentiment, community discussion is highly positive. If doing competitive analysis, the topic attracts significant engagement.' 
                   : (report.pmf_score ?? 0) >= 5 
-                  ? 'Moderate Product-Market Fit: Potential for growth' 
-                  : 'Low Product-Market Fit: Consider pivoting or feature adjustments'}
+                  ? 'Moderate community interest — If validating a product idea, there is potential worth exploring. If monitoring brand sentiment, opinions are mixed. If doing competitive analysis, engagement is average.' 
+                  : 'Low community interest — If validating a product idea, reconsider the market need. If monitoring brand sentiment, the topic generates little discussion. If doing competitive analysis, this space may not be competitive.'}
               </p>
             </div>
           </CardContent>
@@ -569,13 +569,14 @@ export default function ReportDetailPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Average Sentiment</CardDescription>
+            <CardDescription>Avg. Sentiment Confidence</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <div className="text-2xl font-bold">
                 {(report.summary.avg_sentiment * 100).toFixed(0)}%
               </div>
+              <p className="text-xs text-muted-foreground mt-1">Average AI confidence in sentiment classification across all analyzed posts.</p>
               {report.summary.avg_sentiment > 0 ? (
                 <TrendingUp className="h-5 w-5 text-green-500" />
               ) : (

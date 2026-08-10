@@ -65,9 +65,9 @@ export async function POST(request: NextRequest) {
     })
 
     if (!creemResponse.ok) {
-      const error = await creemResponse.text()
-      console.error('Creem API error:', error)
-      return NextResponse.json({ error: 'Failed to create checkout session' }, { status: 500 })
+      const errorText = await creemResponse.text()
+      console.error('Creem API error:', creemResponse.status, errorText)
+      return NextResponse.json({ error: 'Payment service error: ' + creemResponse.status, detail: errorText.slice(0, 200) }, { status: 502 })
     }
 
     const session = await creemResponse.json()

@@ -167,7 +167,7 @@ export default function PricingPage() {
                     {typeof plan.price === 'number' ? (
                       <>
                         <span className="text-3xl font-bold text-foreground">${plan.price}</span>
-                        <span className="text-muted-foreground ml-1">/mo</span>
+                        <span className="text-foreground ml-1">/mo</span>
                       </>
                     ) : (
                       <span className="text-2xl font-semibold text-muted-foreground">{plan.price}</span>

@@ -76,6 +76,7 @@ export function DashboardNav() {
             </button>
 
             {/* Simple custom dropdown - no Base UI dependency */}
+            {user && (
             <div ref={menuRef} className="relative">
               <button
                 type="button"
@@ -118,6 +119,10 @@ export function DashboardNav() {
                 </div>
               )}
             </div>
+            )}
+            {!user && (
+              <Link href="/login" className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">Sign In</Link>
+            )}
           </div>
         </div>
 

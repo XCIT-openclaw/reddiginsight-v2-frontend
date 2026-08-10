@@ -64,7 +64,7 @@ export async function GET(
     body += '<div class="grid">\n';
     body += '<div class="card"><p class="ct">PMF Score</p><p class="cv">' + pmf + '/10</p></div>\n';
     if (infDisp) body += '<div class="card"><p class="ct">Influence Score</p><p class="cv">' + infDisp + '</p></div>\n';
-    body += '<div class="card"><p class="ct">Average Sentiment</p><p class="cv">' + avgDisp + '</p></div>\n';
+    body += '<div class="card"><p class="ct">Avg. Sentiment Confidence</p><p class="cv">' + avgDisp + '</p></div>\n';
     body += '<div class="card"><p class="ct">Total Posts Analyzed</p><p class="cv">' + total + '</p></div>\n';
     body += '</div>\n';
 

@@ -1,4 +1,4 @@
-﻿import React, { useState, KeyboardEvent } from 'react';
+import React, { useState, KeyboardEvent } from 'react';
 
 interface ChatInputProps {
   onSubmit: (content: string) => void;

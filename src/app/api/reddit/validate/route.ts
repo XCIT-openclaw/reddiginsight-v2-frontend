@@ -1,4 +1,4 @@
-﻿import { fetchWithProxy } from '@/lib/fetch-proxy';
+import { fetchWithProxy } from '@/lib/fetch-proxy';
 import { callScraplingService, isServiceConfigured } from '@/lib/scrapling-service';
 import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';

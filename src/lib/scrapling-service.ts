@@ -1,4 +1,4 @@
-﻿// Shared helper: proxy requests to the Scrapling Python service
+// Shared helper: proxy requests to the Scrapling Python service
 // deployed on Singapore Tencent Cloud server.
 // Falls back to direct access if service is not configured or unreachable.
 

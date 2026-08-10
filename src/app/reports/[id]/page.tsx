@@ -588,6 +588,7 @@ export default function ReportDetailPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Sentiment Breakdown</CardDescription>
+            <p className="text-xs text-muted-foreground">AI-classified sentiment categories across all analyzed posts. Each post is labeled based on the overall emotional tone detected.</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap items-center gap-2">

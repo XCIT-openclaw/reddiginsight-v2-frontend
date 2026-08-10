@@ -108,6 +108,12 @@ function parseSSEData(chunk: string): string {
 function extractQueryParams(content: string): QueryParams | null {
   console.log('extractQueryParams called, content length:', content.length);
   
+  // Guard: only extract if content contains JSON structure
+  if (!/\{(?:[^{}]*("subreddit"|"keywords"|"timeRange"|"limit")){2,}[^{}]*\}/.test(content)) {
+    console.log('No JSON structure detected, skipping extraction');
+    return null;
+  }
+  
   // Remove markdown code block markers if present
   let cleanContent = content
     .replace(/```json\s*/gi, '')

@@ -112,6 +112,10 @@ export default function SignupPage() {
                 <span className="text-green-500">✓</span>
                 <span>No credit card required</span>
               </div>
+              <div className="flex items-center gap-2 text-sm mt-3 pt-2 border-t border-border/30 text-muted-foreground">
+                <span>❗</span>
+                <span>A confirmation email will be sent to verify your account.</span>
+              </div>
             </div>
           </CardContent>
           <CardFooter className="flex flex-col space-y-4">

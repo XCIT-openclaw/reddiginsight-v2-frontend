@@ -43,12 +43,22 @@ export function SearchParamsCard({ params, isLoading, onConfirm, onCancel }: Sea
             <div className="p-3 rounded-full bg-muted/50">
               <Info className="h-6 w-6 opacity-40" />
             </div>
-            <p className="text-sm leading-relaxed">
+            <p className="text-sm leading-relaxed text-amber-700">
               AI will suggest search parameters as you chat.
             </p>
-            <p className="text-xs opacity-60">
+            <p className="text-xs text-amber-600/70">
               Once generated, you can review and confirm them here.
             </p>
+            
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-start gap-3 mt-2 text-left w-full">
+              <svg className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <div>
+                <p className="font-semibold mb-0.5">JSON Not Auto-Filled?</p>
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  If the AI-generated JSON search parameters don&rsquo;t automatically appear here, type <strong>&ldquo;generate again&rdquo;</strong> in the chat to retry.
+                </p>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">

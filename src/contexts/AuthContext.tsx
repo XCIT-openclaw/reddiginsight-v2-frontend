@@ -15,6 +15,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>
   signUp: (email: string, password: string) => Promise<{ error: Error | null }>
   signOut: () => Promise<void>
+  signInWithGoogle: () => Promise<void>
   refreshProfile: () => Promise<void>
 }
 
@@ -263,11 +264,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       })
-      return { error }
+      if (data.user?.identities?.length === 0) {
+        return { error: new Error('An account with this email already exists. Please sign in instead.') }
+      }
+
+      return { error: null }
     } catch (error) {
       return { error: error as Error }
     }
@@ -282,6 +287,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(null)
   }
 
+  const signInWithGoogle = async () => {
+    if (!supabase) {
+      console.error('Supabase not configured');
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      if (error) {
+        console.error('Google sign in failed:', error.message);
+      }
+    } catch (err: any) {
+      console.error('Google sign in failed:', err.message);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -294,6 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signIn,
         signUp,
         signOut,
+        signInWithGoogle,
         refreshProfile,
       }}
     >

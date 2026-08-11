@@ -194,7 +194,7 @@ function extractQueryParams(content: string): QueryParams | null {
   const extracted: Record<string, string | number | undefined> = {};
   
   for (const [field, regex] of Object.entries(fieldExtractors)) {
-    const match = fixedContent.match(regex);
+    const match = cleanContent.match(regex);  // use original content, fixMalformedJson may truncate values
     if (match) {
       extracted[field] = field === 'limit' ? parseInt(match[1]) : match[1];
       console.log(`Regex extracted ${field}:`, match[1]);
@@ -286,6 +286,9 @@ function fixEmptyKeys(jsonStr: string): string {
 function fixMalformedJson(jsonStr: string): string {
   let fixed = jsonStr;
   
+  // 0a. Fix Unicode smart/curly quotes (e.g. McDonald\u201Ds \u2192 McDonald's)
+  fixed = fixed.replace(/[\u201C\u201D\u2018\u2019]/g, '"');
+  
   // 0. Fix empty keys by position
   fixed = fixEmptyKeys(fixed);
   
@@ -324,7 +327,9 @@ function fixMalformedJson(jsonStr: string): string {
   fixed = fixed.replace(/"\s+"/g, '", "');
   
   // 6. Fix single quotes 闂備焦鍓氶崑鎾诲箯?double quotes
-  fixed = fixed.replace(/'/g, '"');
+    // 6. Fix structural single quotes (keys and values only, not content inside strings)
+  fixed = fixed.replace(/([{,]\s*)'(\w+)'(\s*:)/g, '$1"$2"$3');
+  fixed = fixed.replace(/(:\s*)'([^']*)'(\s*[,}])/g, '$1"$2"$3');
   
   // 7. Remove trailing commas
   fixed = fixed.replace(/,\s*([}\]])/g, '$1');
@@ -615,12 +620,16 @@ export default function ChatPage() {
         let extractedParams = extractQueryParams(aiMessageContent);
         
         if (!extractedParams) {
-          console.log('[Chat] extractQueryParams failed, trying JSON mode fallback...');
+          const hasSubredditHint = /\{[^}]*"(?:subreddit|subred|reddit)"\s*:\s*"[^"]+"/i.test(aiMessageContent);
+          if (!hasSubredditHint) {
+            console.log('[Chat] No subreddit hint in response, skipping fallback');
+          } else {
+            console.log('[Chat] extractQueryParams failed, trying JSON mode fallback...');
           try {
             const supabase2 = createClient();
             const { data: { session: sess2 } } = await supabase2.auth.getSession();
             if (sess2) {
-              const fbRes = await fetch('/api/chat/extract-params', {
+              const fbRes = await fetch('/api/chat/extract-params', { signal: AbortSignal.timeout(30000),
                 method: 'POST',
                 headers: {
                   'Authorization': 'Bearer ' + sess2.access_token,
@@ -647,6 +656,7 @@ export default function ChatPage() {
             }
           } catch (fbErr) {
             console.warn('[Chat] JSON mode fallback error:', fbErr);
+          }
           }
         }
         

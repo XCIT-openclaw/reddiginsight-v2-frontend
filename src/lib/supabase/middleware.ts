@@ -41,21 +41,24 @@ export async function updateSession(request: NextRequest) {
   // Dev mode: skip Supabase network call when behind proxy.
   // Rely on session cookie presence + client-side AuthContext for verification.
   // This prevents hard-refresh hangs when Supabase is unreachable from local machine.
+  //
+  // IMPORTANT: We do NOT redirect from auth paths (/login, /signup) based on cookie presence.
+  // Stale cookies would cause a redirect loop. Instead, let the client-side AuthContext
+  // validate the session and redirect if valid.
   const user = hasSessionCookie ? { id: 'cookie-present' } : null
 
   if (isProtectedPath && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    // Only use pathname, strip existing query params to avoid nested redirect loops
     const cleanRedirect = request.nextUrl.pathname
     url.searchParams.set('redirect', cleanRedirect)
     return NextResponse.redirect(url)
   }
 
-  if (isAuthPath && user) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+  // Auth paths: always allow access. Client-side LoginForm will redirect to /dashboard
+  // if AuthContext detects a valid session. This prevents stale-cookie redirect loops.
+  if (isAuthPath) {
+    return response
   }
 
   return response

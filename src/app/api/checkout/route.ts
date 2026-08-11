@@ -31,16 +31,14 @@ export async function POST(request: NextRequest) {
     const creemApiKey = process.env.CREEM_API_KEY;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
-    // Dev mode: simulate checkout
     if (!creemApiKey || creemApiKey === 'your-creem-api-key-here') {
       console.log('[DEV] Simulating Creem checkout:', plan.name);
       return NextResponse.json({ success: true, message: 'Subscription simulated (dev mode)', credits: plan.credits });
     }
 
     const apiBase = getCreemApiBase();
-    console.log('[Creem] Checkout base:', apiBase);
+    console.log('[Creem] Checkout URL:', apiBase + '/checkouts');
 
-    // Creem checkout API: POST /v1/checkouts with x-api-key header
     const creemResponse = await fetch(apiBase + '/checkouts', {
       method: 'POST',
       headers: {
@@ -49,8 +47,13 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         product_id: plan.productId,
-        success_url: appUrl + '/dashboard?subscription=success&plan=' + body.planId,
+        success_url: appUrl + '/dashboard?subscription=success',
         cancel_url: appUrl + '/pricing?subscription=canceled',
+        metadata: {
+          user_id: user.id,
+          plan_id: body.planId,
+          credits: String(plan.credits),
+        },
       }),
     });
 
@@ -65,17 +68,6 @@ export async function POST(request: NextRequest) {
 
     const session = await creemResponse.json();
     console.log('[Creem] Checkout created:', session.id);
-
-    // Store pending checkout for webhook matching
-    if (session.id) {
-      await supabase.from('pending_checkouts').insert({
-        checkout_id: session.id,
-        user_id: user.id,
-        plan_id: body.planId,
-        credits: plan.credits,
-        created_at: new Date().toISOString(),
-      });
-    }
 
     return NextResponse.json({ checkoutUrl: session.url || session.checkout_url, sessionId: session.id });
   } catch (error) {

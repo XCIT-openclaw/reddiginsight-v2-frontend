@@ -38,22 +38,13 @@ async function addCreditsToUser(
 export async function POST(request: NextRequest) {
   try {
     const payload = await request.text();
-    const signature = request.headers.get('x-creem-signature');
+    const signature = request.headers.get('creem-signature');
     const webhookSecret = process.env.CREEM_WEBHOOK_SECRET;
-    console.log('[Creem Webhook] Signature header:', signature?.substring(0, 20) + '...');
-    console.log('[Creem Webhook] Secret length:', webhookSecret?.length);
-    console.log('[Creem Webhook] Payload length:', payload.length);
-    console.log('[Creem Webhook] Payload preview:', payload.substring(0, 200));
     if (webhookSecret && webhookSecret !== 'your-webhook-secret-here') {
-      // Compute expected signature for debugging
-      const expected = crypto.createHmac('sha256', webhookSecret).update(payload).digest('hex');
-      console.log('[Creem Webhook] Expected signature:', expected.substring(0, 20) + '...');
-      console.log('[Creem Webhook] Received signature:', signature?.substring(0, 20) + '...');
-      console.log('[Creem Webhook] Match:', expected === signature);
-      
-      // TEMP: skip verification to test credit processing
-      // TODO: re-enable after debugging
-      console.log('[Creem Webhook] TEMP - signature verification SKIPPED for debugging');
+      if (!verifySignature(payload, signature, webhookSecret)) {
+        console.error('[Creem Webhook] Invalid signature');
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+      }
     } else {
       console.log('[Creem Webhook] DEV mode - signature verification skipped');
     }

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
     if (!plan) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
 
     const creemApiKey = process.env.CREEM_API_KEY;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = request.nextUrl.origin;  // dynamic, always correct
 
     if (!creemApiKey || creemApiKey === 'your-creem-api-key-here') {
       console.log('[DEV] Simulating Creem checkout:', plan.name);

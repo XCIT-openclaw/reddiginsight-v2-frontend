@@ -38,6 +38,8 @@ export async function POST(request: NextRequest) {
 
     const apiBase = getCreemApiBase();
     console.log('[Creem] Checkout URL:', apiBase + '/checkouts');
+    console.log('[Creem] APP_URL raw:', process.env.NEXT_PUBLIC_APP_URL);
+    console.log('[Creem] success_url:', appUrl + '/dashboard?subscription=success');
 
     const creemResponse = await fetch(apiBase + '/checkouts', {
       method: 'POST',

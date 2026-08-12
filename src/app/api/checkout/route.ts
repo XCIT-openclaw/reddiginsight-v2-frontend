@@ -48,7 +48,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         product_id: plan.productId,
         success_url: appUrl + '/dashboard?subscription=success',
-        cancel_url: appUrl + '/pricing?subscription=canceled',
+        // cancel_url not supported by test-api, uncomment for production
+        // cancel_url: appUrl + '/pricing?subscription=canceled',
         metadata: {
           user_id: user.id,
           plan_id: body.planId,

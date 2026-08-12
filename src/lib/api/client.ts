@@ -1,7 +1,7 @@
 // API Client for backend communication
-// Backend URL: http://106.15.90.140:3001
+// Backend URL: http://106.15.90.140:13001
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://106.15.90.140:3001';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://106.15.90.140:13001';
 
 interface ApiResponse<T> {
   data?: T;

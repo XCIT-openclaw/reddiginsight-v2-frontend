@@ -87,6 +87,27 @@ export async function POST(request: NextRequest) {
           break;
         }
 
+        // Recurring subscriptions are credited only by subscription.paid.
+        // Creem sends checkout.completed + subscription.paid for the initial charge,
+        // so granting credits here would double-count the same purchase.
+        if (eventObject.subscription) {
+          const subObj = eventObject.subscription;
+          const subId = typeof subObj === "string" ? subObj : subObj.id;
+          if (subId) {
+            await supabase.from("subscriptions").upsert({
+              user_id: userId,
+              plan_id: planId,
+              creem_subscription_id: subId,
+              status: "active",
+              credits_per_month: credits,
+              current_period_end: subObj.current_period_end_date || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }, { onConflict: "creem_subscription_id" });
+          }
+          console.log("[Creem Webhook] checkout.completed is recurring; deferring credits to subscription.paid:", subId);
+          break;
+        }
+
         // Dedup: check if this order was already processed
         const { data: existingTx } = await supabase
           .from("transactions")
@@ -119,23 +140,6 @@ export async function POST(request: NextRequest) {
             updated_at: new Date().toISOString(),
           }).eq("id", userId);
           console.log("[Creem Webhook] Credits added:", credits, "New total:", (user.credits || 0) + credits);
-        }
-
-        // Create/update subscription if present
-        if (eventObject.subscription) {
-          const subObj = eventObject.subscription;
-          const subId = typeof subObj === "string" ? subObj : subObj.id;
-          if (subId) {
-            await supabase.from("subscriptions").upsert({
-              user_id: userId,
-              plan_id: planId,
-              creem_subscription_id: subId,
-              status: "active",
-              credits_per_month: credits,
-              current_period_end: subObj.current_period_end_date || new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }, { onConflict: "user_id" });
-          }
         }
 
         console.log("[Creem Webhook] checkout.completed processed for user:", userId);
@@ -205,7 +209,7 @@ export async function POST(request: NextRequest) {
               credits_per_month: subCredits,
               current_period_end: eventObject.current_period_end_date || new Date().toISOString(),
               updated_at: new Date().toISOString(),
-            }, { onConflict: "user_id" });
+            }, { onConflict: "creem_subscription_id" });
 
             await supabase.from("transactions").insert({
               user_id: subUserId,

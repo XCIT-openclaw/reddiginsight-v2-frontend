@@ -90,7 +90,12 @@ function SearchParamsHandler({
         .then((data) => {
           console.log("[Dashboard] Verify checkout result:", data);
           console.log("[Dashboard] Verify checkout debug:", data.debug);
-          if (data.success) {
+          if (data.pending) {
+            toast.success(data.message || "Payment received", {
+              description: "Your credits will appear in a few seconds.",
+              duration: 5000,
+            });
+          } else if (data.success) {
             toast.success(data.message || "Payment verified", {
               description: data.alreadyProcessed
                 ? "Credits were already added (" + (data.credits ?? 0) + " credits)"
@@ -106,7 +111,8 @@ function SearchParamsHandler({
           if (window.history.replaceState) {
             window.history.replaceState({}, "", "/dashboard");
           }
-          setTimeout(() => window.location.reload(), 2000);
+          const reloadDelay = data.pending ? 4000 : 2000;
+          setTimeout(() => window.location.reload(), reloadDelay);
         })
         .catch((err) => {
           console.error("[Dashboard] Verify checkout error:", err);

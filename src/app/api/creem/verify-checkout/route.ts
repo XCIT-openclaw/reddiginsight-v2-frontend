@@ -34,8 +34,37 @@ export async function POST(request: NextRequest) {
     const paymentId = order_id || checkout_id;
     const planId = plan_id || PRODUCT_TO_PLAN[product_id] || "starter";
     const credits = PLAN_CREDITS[planId] || 10;
+    const isSubscription = Boolean(PRODUCT_TO_PLAN[product_id]);
 
-    console.log("[verify-checkout] Processing:", { checkout_id, order_id, planId, credits, userId: user.id });
+    console.log("[verify-checkout] Processing:", { checkout_id, order_id, planId, credits, isSubscription, userId: user.id });
+
+    if (isSubscription) {
+      // Recurring subscription credits are granted by the Creem subscription.paid webhook.
+      // Processing them here too would duplicate the same purchase.
+      const { data: existingTx } = await supabase
+        .from("transactions")
+        .select("id, credits")
+        .eq("payment_id", paymentId)
+        .maybeSingle();
+
+      if (existingTx) {
+        console.log("[verify-checkout] Already processed:", paymentId);
+        return NextResponse.json({
+          success: true,
+          message: "Already processed",
+          alreadyProcessed: true,
+          credits: existingTx.credits,
+          debug: { checkout_id, order_id, paymentId, planId, existingCredits: existingTx.credits },
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        pending: true,
+        message: "Payment received. Your credits are being finalized.",
+        debug: { checkout_id, order_id, paymentId, planId, credits, userId: user.id },
+      });
+    }
 
     // Dedup check
     const { data: existingTx } = await supabase

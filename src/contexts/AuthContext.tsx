@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   sessionRef.current = session
   const lastTokenRef2 = useRef<string | null>(null)
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, accessToken?: string | null) => {
     // Skip if already fetching or already have profile for this user
     if (fetchingProfileRef.current) return
     if (lastFetchedUserIdRef.current === userId && profile) return
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     fetchingProfileRef.current = true
     setProfileLoading(true)
     try {
-      const token = sessionRef.current?.access_token
+      const token = accessToken ?? sessionRef.current?.access_token
       if (!token) return
 
       const controller = new AbortController()
@@ -113,9 +113,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted) return
 
         if (activeSession?.user) {
+          sessionRef.current = activeSession
           setSession(activeSession)
           setUser(activeSession.user)
-          fetchProfile(activeSession.user.id)
+          fetchProfile(activeSession.user.id, activeSession.access_token)
         }
 
         const { data: { user }, error } = await supabase.auth.getUser()
@@ -203,14 +204,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         if (session?.user) {
+          sessionRef.current = session
           setSession(session)
           setUser(session.user)
         }
         setLoading(false)
 
-        // Only fetch profile on initial sign-in
-        if (session?.user && event === "SIGNED_IN") {
-          await fetchProfile(session.user.id)
+        // Fetch/refresh profile whenever the active session is established or refreshed.
+        if (session?.user) {
+          const shouldFetchProfile =
+            event === "SIGNED_IN" ||
+            event === "TOKEN_REFRESHED" ||
+            event === "INITIAL_SESSION" ||
+            lastFetchedUserIdRef.current !== session.user.id
+          if (shouldFetchProfile) {
+            await fetchProfile(session.user.id, session.access_token)
+          }
         }
       }
     )

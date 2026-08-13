@@ -79,23 +79,41 @@ function SearchParamsHandler({
     const checkoutId = searchParams.get("checkout_id");
     const orderId = searchParams.get("order_id");
     const productId = searchParams.get("product_id");
-    if (subscription === "success" && checkoutId) {
-      console.log("[Dashboard] Creem redirect detected, verifying checkout...");
+    const subscriptionId = searchParams.get("subscription_id");
+    if (subscription !== "success" || !checkoutId) return;
+
+    const payload = {
+      checkout_id: checkoutId,
+      order_id: orderId,
+      product_id: productId,
+      subscription_id: subscriptionId,
+    };
+
+    const verifyCheckout = () =>
       fetch("/api/creem/verify-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkout_id: checkoutId, order_id: orderId, product_id: productId }),
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          console.log("[Dashboard] Verify checkout result:", data);
-          console.log("[Dashboard] Verify checkout debug:", data.debug);
-          if (data.pending) {
-            toast.success(data.message || "Payment received", {
-              description: "Your credits will appear in a few seconds.",
-              duration: 5000,
-            });
-          } else if (data.success) {
+        body: JSON.stringify(payload),
+      }).then((res) => res.json());
+
+    const clearRedirect = () => {
+      if (window.history.replaceState) {
+        window.history.replaceState({}, "", "/dashboard");
+      }
+    };
+
+    const finalize = (data: any) => {
+      clearRedirect();
+      window.location.reload();
+    };
+
+    verifyCheckout()
+      .then((data) => {
+        console.log("[Dashboard] Verify checkout result:", data);
+        console.log("[Dashboard] Verify checkout debug:", data.debug);
+
+        if (!data.pending) {
+          if (data.success) {
             toast.success(data.message || "Payment verified", {
               description: data.alreadyProcessed
                 ? "Credits were already added (" + (data.credits ?? 0) + " credits)"
@@ -108,20 +126,75 @@ function SearchParamsHandler({
               duration: 8000,
             });
           }
-          if (window.history.replaceState) {
-            window.history.replaceState({}, "", "/dashboard");
-          }
-          const reloadDelay = data.pending ? 4000 : 2000;
-          setTimeout(() => window.location.reload(), reloadDelay);
-        })
-        .catch((err) => {
-          console.error("[Dashboard] Verify checkout error:", err);
-          toast.error("Payment verification failed", {
-            description: String(err),
-            duration: 8000,
-          });
+          finalize(data);
+          return;
+        }
+
+        toast.success(data.message || "Payment received", {
+          description: "Your credits will appear in a few seconds.",
+          duration: 5000,
         });
-    }
+
+        const maxAttempts = 10;
+        const pollIntervalMs = 3000;
+        let attempts = 0;
+
+        const poll = () => {
+          attempts += 1;
+          verifyCheckout()
+            .then((pollData) => {
+              console.log("[Dashboard] Verify checkout poll:", pollData);
+
+              if (!pollData.pending) {
+                if (pollData.success) {
+                  toast.success(pollData.message || "Payment verified", {
+                    description: pollData.alreadyProcessed
+                      ? "Credits were already added (" + (pollData.credits ?? 0) + " credits)"
+                      : "+ " + pollData.creditsAdded + " credits added. Total: " + pollData.totalCredits,
+                    duration: 5000,
+                  });
+                } else {
+                  toast.error(pollData.error || "Payment verification failed", {
+                    description: pollData.details || "Please try again.",
+                    duration: 8000,
+                  });
+                }
+                finalize(pollData);
+                return;
+              }
+
+              if (attempts >= maxAttempts) {
+                toast("Could not confirm credits yet", {
+                  description: "Please refresh the page in a moment.",
+                  duration: 8000,
+                });
+                finalize(pollData);
+                return;
+              }
+
+              setTimeout(poll, pollIntervalMs);
+            })
+            .catch((err) => {
+              console.error("[Dashboard] Verify checkout poll error:", err);
+              toast.error("Payment verification failed", {
+                description: String(err),
+                duration: 8000,
+              });
+              finalize({});
+            });
+        };
+
+        setTimeout(poll, pollIntervalMs);
+      })
+      .catch((err) => {
+        console.error("[Dashboard] Verify checkout error:", err);
+        toast.error("Payment verification failed", {
+          description: String(err),
+          duration: 8000,
+        });
+        clearRedirect();
+      });
+
   }, [searchParams]);
 
   useEffect(() => {

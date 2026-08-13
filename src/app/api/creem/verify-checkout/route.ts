@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { checkout_id, order_id, plan_id, product_id } = body;
+    const { checkout_id, order_id, plan_id, product_id, subscription_id } = body;
 
     if (!checkout_id && !order_id) {
       return NextResponse.json({ error: "checkout_id or order_id is required" }, { status: 400 });
@@ -41,20 +41,21 @@ export async function POST(request: NextRequest) {
     if (isSubscription) {
       // Recurring subscription credits are granted by the Creem subscription.paid webhook.
       // Processing them here too would duplicate the same purchase.
+      const subscriptionPaymentId = subscription_id || order_id || checkout_id;
       const { data: existingTx } = await supabase
         .from("transactions")
         .select("id, credits")
-        .eq("payment_id", paymentId)
+        .eq("payment_id", subscriptionPaymentId)
         .maybeSingle();
 
       if (existingTx) {
-        console.log("[verify-checkout] Already processed:", paymentId);
+        console.log("[verify-checkout] Already processed:", subscriptionPaymentId);
         return NextResponse.json({
           success: true,
           message: "Already processed",
           alreadyProcessed: true,
           credits: existingTx.credits,
-          debug: { checkout_id, order_id, paymentId, planId, existingCredits: existingTx.credits },
+          debug: { checkout_id, order_id, subscription_id, paymentId: subscriptionPaymentId, planId, existingCredits: existingTx.credits },
         });
       }
 
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
         success: true,
         pending: true,
         message: "Payment received. Your credits are being finalized.",
-        debug: { checkout_id, order_id, paymentId, planId, credits, userId: user.id },
+        debug: { checkout_id, order_id, subscription_id, paymentId: subscriptionPaymentId, planId, credits, userId: user.id },
       });
     }
 

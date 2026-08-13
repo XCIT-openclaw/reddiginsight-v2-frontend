@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { DashboardNav } from '@/components/DashboardNav'
@@ -9,9 +9,39 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { User, CreditCard, Bell, Shield, Loader2 } from 'lucide-react'
+import { User, CreditCard, Bell, Shield, Loader2, CalendarClock } from 'lucide-react'
 import { toast } from 'sonner'
+
+interface SubscriptionStatus {
+  plan_id: string | null
+  status: string | null
+  pending_plan: string | null
+  plan_change_requested_at: string | null
+  credits_per_month: number | null
+  current_period_end: string | null
+}
+
+function formatPlan(planId: string | null): string {
+  if (planId === 'pro') return 'Pro'
+  if (planId === 'starter') return 'Starter'
+  return 'Free'
+}
+
+function formatSubscriptionStatus(status: string | null): string {
+  switch (status) {
+    case 'active': return 'Active'
+    case 'trialing': return 'Trialing'
+    case 'past_due': return 'Past Due'
+    case 'paused': return 'Paused'
+    case 'scheduled_cancel': return 'Cancellation Scheduled'
+    case 'canceled': return 'Canceled'
+    case 'expired': return 'Expired'
+    case 'unpaid': return 'Unpaid'
+    default: return status || 'Inactive'
+  }
+}
 
 export default function SettingsPage() {
   const { user, profile, signOut } = useAuth()
@@ -20,6 +50,30 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [passwordLoading, setPasswordLoading] = useState(false)
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null)
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [cancelLoading, setCancelLoading] = useState(false)
+
+  const hasSubscriptionCard = Boolean(subscriptionStatus && !['canceled', 'expired'].includes(subscriptionStatus.status || ''))
+  const isCancellationScheduled = subscriptionStatus?.status === 'scheduled_cancel'
+
+  const loadSubscriptionStatus = async () => {
+    try {
+      const response = await fetch('/api/subscriptions/status')
+      if (!response.ok) return
+      const data = await response.json()
+      if (data?.subscription) {
+        setSubscriptionStatus(data.subscription)
+      }
+    } catch {
+      // Ignore subscription status fetch errors on the settings page.
+    }
+  }
+
+  useEffect(() => {
+    loadSubscriptionStatus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user])
 
   const handlePurchaseCredits = () => {
     router.push('/pricing')
@@ -53,6 +107,45 @@ export default function SettingsPage() {
       toast.error(error.message || 'Failed to change password')
     } finally {
       setPasswordLoading(false)
+    }
+  }
+
+  const handleCancelSubscription = async () => {
+    setCancelLoading(true)
+    try {
+      const response = await fetch('/api/subscriptions/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'scheduled' }),
+      })
+
+      const data = await response.json()
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to cancel subscription')
+      }
+
+      setSubscriptionStatus((previous) => ({
+        ...(previous || {
+          plan_id: profile?.plan || 'free',
+          pending_plan: null,
+          plan_change_requested_at: null,
+          credits_per_month: null,
+          current_period_end: null,
+        }),
+        status: 'scheduled_cancel',
+      }))
+      setCancelDialogOpen(false)
+      toast.success('Subscription cancellation scheduled', {
+        description: 'Your subscription will remain active until the end of the current billing cycle.',
+        duration: 7000,
+      })
+      setTimeout(() => { loadSubscriptionStatus() }, 1500)
+    } catch (error: any) {
+      toast.error('Failed to cancel subscription', {
+        description: error?.message || 'Please try again.',
+      })
+    } finally {
+      setCancelLoading(false)
     }
   }
 
@@ -128,6 +221,62 @@ export default function SettingsPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Subscription Section */}
+        {hasSubscriptionCard && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <CalendarClock className="h-5 w-5" />
+                <CardTitle>Subscription</CardTitle>
+              </div>
+              <CardDescription>Manage your subscription plan</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">Current Plan</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatPlan(subscriptionStatus?.plan_id || profile?.plan || null)}
+                  </p>
+                </div>
+                <Badge variant="secondary" className="text-sm px-3 py-1">
+                  {formatSubscriptionStatus(subscriptionStatus?.status || null)}
+                </Badge>
+              </div>
+
+              {subscriptionStatus?.current_period_end && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">Current Period Ends</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(subscriptionStatus.current_period_end).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {subscriptionStatus?.pending_plan && (
+                <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-700">
+                  Your next plan is {formatPlan(subscriptionStatus.pending_plan)}. It will start at the beginning of your next billing cycle.
+                </div>
+              )}
+
+              <Separator />
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => setCancelDialogOpen(true)}
+                disabled={isCancellationScheduled}
+              >
+                {isCancellationScheduled ? 'Cancellation Scheduled' : 'Cancel Subscription'}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Cancellation takes effect at the end of the current billing cycle.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Notifications Section */}
         <Card>
@@ -209,6 +358,26 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={cancelDialogOpen} onOpenChange={(open) => !cancelLoading && setCancelDialogOpen(open)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel subscription?</DialogTitle>
+            <DialogDescription>
+              Your subscription will remain active until the end of the current billing cycle. After that, it will not renew and your plan will return to Free.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelDialogOpen(false)} disabled={cancelLoading}>
+              Keep Subscription
+            </Button>
+            <Button variant="destructive" onClick={handleCancelSubscription} disabled={cancelLoading}>
+              {cancelLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              Cancel Subscription
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

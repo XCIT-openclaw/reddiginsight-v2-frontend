@@ -171,7 +171,17 @@ export async function POST(request: NextRequest) {
         const subId = eventObject.id;
         console.log("[Creem Webhook] subscription.paid:", subId);
 
-        const productId = typeof eventObject.product === "string" ? eventObject.product : eventObject.product?.id || eventObject.product_id;
+        const firstPaidItem = Array.isArray(eventObject.items) ? eventObject.items[0] : null;
+        const itemProductId =
+          typeof firstPaidItem?.product_id === "string"
+            ? firstPaidItem.product_id
+            : typeof firstPaidItem?.product === "string"
+              ? firstPaidItem.product
+              : firstPaidItem?.product?.id;
+        const productId =
+          typeof eventObject.product === "string"
+            ? eventObject.product
+            : eventObject.product?.id || eventObject.product_id || itemProductId;
         const planId = eventObject.metadata?.plan_id || PRODUCT_TO_PLAN[productId] || "starter";
         const subCredits = PLAN_CREDITS[planId] || 0;
 
@@ -229,9 +239,38 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case "subscription.update": {
+        const subId = eventObject.id;
+        const firstUpdateItem = Array.isArray(eventObject.items) ? eventObject.items[0] : null;
+        const updateItemProductId =
+          typeof firstUpdateItem?.product_id === "string"
+            ? firstUpdateItem.product_id
+            : typeof firstUpdateItem?.product === "string"
+              ? firstUpdateItem.product
+              : firstUpdateItem?.product?.id;
+        const productId =
+          typeof eventObject.product === "string"
+            ? eventObject.product
+            : eventObject.product?.id || eventObject.product_id || updateItemProductId;
+        const planId = eventObject.metadata?.plan_id || PRODUCT_TO_PLAN[productId];
+        const planCredits = planId ? PLAN_CREDITS[planId] : null;
+
+        console.log("[Creem Webhook] subscription.update:", { subId, productId, planId, planCredits });
+
+        if (subId) {
+          const updatePayload: Record<string, unknown> = {
+            updated_at: new Date().toISOString(),
+          };
+          if (planId) updatePayload.plan_id = planId;
+          if (planCredits !== null && planCredits !== undefined) updatePayload.credits_per_month = planCredits;
+          if (eventObject.current_period_end_date) updatePayload.current_period_end = eventObject.current_period_end_date;
+          await supabase.from("subscriptions").update(updatePayload).eq("creem_subscription_id", subId);
+        }
+        break;
+      }
+
       case "subscription.canceled":
       case "subscription.paused":
-      case "subscription.update":
       case "subscription.scheduled_cancel":
       case "subscription.past_due":
       case "subscription.unpaid": {

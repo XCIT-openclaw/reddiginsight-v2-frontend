@@ -72,6 +72,7 @@ export default function PricingPage() {
   const { user, profile, refreshProfile } = useAuth()
   const router = useRouter()
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
+  const currentPlan = profile?.plan || 'free'
 
   const handlePurchase = async (plan: PricingPlan) => {
     if (!plan.available) return
@@ -123,6 +124,52 @@ export default function PricingPage() {
     }
   }
 
+  const handlePlanChange = async (plan: PricingPlan) => {
+    if (!plan.available || !plan.productId || !user) return
+
+    const isUpgrade = plan.id === 'pro' && currentPlan === 'starter'
+    const isDowngrade = plan.id === 'starter' && currentPlan === 'pro'
+    if (!isUpgrade && !isDowngrade) return
+
+    setLoadingPlan(plan.id)
+
+    try {
+      const response = await fetch('/api/subscriptions/upgrade', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_id: plan.productId,
+          update_behavior: isUpgrade ? 'proration-charge-immediately' : 'proration-none',
+        }),
+      })
+
+      const data = await response.json()
+      if (data.error) {
+        throw new Error(data.error + (data.details ? ' | ' + data.details : ''))
+      }
+
+      if (isUpgrade) {
+        toast.success('Upgrade requested', {
+          description: 'Your Pro plan is being activated. You will receive 30 credits immediately, and only the prorated difference will be charged for the rest of this billing cycle.',
+          duration: 7000,
+        })
+      } else {
+        toast.success('Downgrade scheduled', {
+          description: 'Your current 30 credits remain available until the end of this billing cycle. Starting next cycle, you will be billed $9.90/month and receive 10 credits.',
+          duration: 7000,
+        })
+      }
+
+      setTimeout(() => { refreshProfile() }, 3500)
+    } catch (error) {
+      toast.error('Plan change failed', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      })
+    } finally {
+      setLoadingPlan(null)
+    }
+  }
+
   return (
     <>
       <DashboardNav />
@@ -145,6 +192,12 @@ export default function PricingPage() {
                 <Zap className="h-4 w-4 mr-2" />
                 Current Balance: {profile?.credits ?? 0} credits
               </Badge>
+            </div>
+          )}
+
+          {user && (currentPlan === 'starter' || currentPlan === 'pro') && (
+            <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border bg-muted/30 text-sm text-muted-foreground text-center">
+              Plan changes: upgrades take effect immediately and grant the new plan&apos;s credits right away. Downgrades take effect at your next billing cycle; your current credits remain available until then.
             </div>
           )}
 
@@ -181,6 +234,16 @@ export default function PricingPage() {
                       {plan.credits} credits per month
                     </div>
                   )}
+                  {user && plan.id === 'pro' && currentPlan === 'starter' && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Upgrade now to get 30 credits immediately. You will only pay the prorated difference for the rest of this billing cycle.
+                    </div>
+                  )}
+                  {user && plan.id === 'starter' && currentPlan === 'pro' && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Your current 30 credits stay available until this billing cycle ends. Starting next cycle, you will get 10 credits per month.
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent className="flex-1">
                   <ul className="space-y-3">
@@ -196,8 +259,15 @@ export default function PricingPage() {
                   <Button
                     className="w-full"
                     variant={plan.popular ? 'default' : 'outline'}
-                    onClick={() => handlePurchase(plan)}
-                    disabled={loadingPlan !== null || !plan.available}
+                    onClick={() => {
+                      if (user && plan.id === currentPlan) return
+                      if (user && ((plan.id === 'pro' && currentPlan === 'starter') || (plan.id === 'starter' && currentPlan === 'pro'))) {
+                        handlePlanChange(plan)
+                      } else {
+                        handlePurchase(plan)
+                      }
+                    }}
+                    disabled={loadingPlan !== null || !plan.available || (user ? plan.id === currentPlan : false)}
                   >
                     {loadingPlan === plan.id ? (
                       <>
@@ -205,10 +275,18 @@ export default function PricingPage() {
                         Processing...
                       </>
                     ) : plan.available ? (
-                      <>
-                        <CreditCard className="h-4 w-4 mr-2" />
-                        Get {plan.credits} Credits
-                      </>
+                      user && plan.id === currentPlan ? (
+                        'Current Plan'
+                      ) : user && plan.id === 'pro' && currentPlan === 'starter' ? (
+                        'Upgrade to Pro'
+                      ) : user && plan.id === 'starter' && currentPlan === 'pro' ? (
+                        'Downgrade to Starter'
+                      ) : (
+                        <>
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Get {plan.credits} Credits
+                        </>
+                      )
                     ) : (
                       'Coming Soon'
                     )}

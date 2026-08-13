@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { BarChart3, TrendingUp, Clock, CheckCircle, XCircle, Zap, MessageSquare, Sparkles, CheckCircle2, Info, Hash } from 'lucide-react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 
 interface Report {
   id: string
@@ -71,6 +72,51 @@ function SearchParamsHandler({
   setLimit: (value: number | null) => void
 }) {
   const searchParams = useSearchParams()
+
+  // Handle Creem subscription success redirect
+  useEffect(() => {
+    const subscription = searchParams.get("subscription");
+    const checkoutId = searchParams.get("checkout_id");
+    const orderId = searchParams.get("order_id");
+    const productId = searchParams.get("product_id");
+    if (subscription === "success" && checkoutId) {
+      console.log("[Dashboard] Creem redirect detected, verifying checkout...");
+      fetch("/api/creem/verify-checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ checkout_id: checkoutId, order_id: orderId, product_id: productId }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          console.log("[Dashboard] Verify checkout result:", data);
+          console.log("[Dashboard] Verify checkout debug:", data.debug);
+          if (data.success) {
+            toast.success(data.message || "Payment verified", {
+              description: data.alreadyProcessed
+                ? "Credits were already added (" + (data.credits ?? 0) + " credits)"
+                : "+ " + data.creditsAdded + " credits added. Total: " + data.totalCredits,
+              duration: 5000,
+            });
+          } else {
+            toast.error(data.error || "Payment verification failed", {
+              description: data.details || "Please try again.",
+              duration: 8000,
+            });
+          }
+          if (window.history.replaceState) {
+            window.history.replaceState({}, "", "/dashboard");
+          }
+          setTimeout(() => window.location.reload(), 2000);
+        })
+        .catch((err) => {
+          console.error("[Dashboard] Verify checkout error:", err);
+          toast.error("Payment verification failed", {
+            description: String(err),
+            duration: 8000,
+          });
+        });
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)

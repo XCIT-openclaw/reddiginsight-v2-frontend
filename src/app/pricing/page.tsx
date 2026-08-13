@@ -98,9 +98,12 @@ export default function PricingPage() {
       })
 
       const data = await response.json()
+      console.log('[Checkout] Full response:', data)
+      console.log('[Checkout] Debug:', data.debug)
 
       if (data.error) {
-        throw new Error(data.error)
+        console.error('[Checkout] Error response:', data)
+        throw new Error(data.error + (data.detail ? ' | ' + data.detail : ''))
       }
 
       if (data.checkoutUrl) {

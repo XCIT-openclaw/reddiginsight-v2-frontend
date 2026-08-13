@@ -52,10 +52,13 @@ export async function POST(request: NextRequest) {
         success_url: appUrl + '/dashboard?subscription=success',
         // cancel_url not supported by test-api, uncomment for production
         // cancel_url: appUrl + '/pricing?subscription=canceled',
+        customer: {
+          email: user.email,
+        },
         metadata: {
           user_id: user.id,
           plan_id: body.planId,
-          credits: String(plan.credits),
+          credits: plan.credits,
         },
       }),
     });
@@ -64,7 +67,19 @@ export async function POST(request: NextRequest) {
       const errorText = await creemResponse.text();
       console.error('[Creem] Checkout error:', creemResponse.status, errorText);
       return NextResponse.json(
-        { error: 'Payment service error: ' + creemResponse.status, detail: errorText.slice(0, 300) },
+        {
+          error: 'Payment service error: ' + creemResponse.status,
+          detail: errorText.slice(0, 1000),
+          debug: {
+            apiBase,
+            checkoutUrl: apiBase + '/checkouts',
+            successUrl: appUrl + '/dashboard?subscription=success',
+            creemStatus: creemResponse.status,
+            creemBody: errorText,
+            productId: plan.productId,
+            planId: body.planId,
+          },
+        },
         { status: 502 }
       );
     }
@@ -72,7 +87,20 @@ export async function POST(request: NextRequest) {
     const session = await creemResponse.json();
     console.log('[Creem] Checkout created:', session.id);
 
-    return NextResponse.json({ checkoutUrl: session.url || session.checkout_url, sessionId: session.id });
+    return NextResponse.json({
+    checkoutUrl: session.checkout_url,
+    sessionId: session.id,
+    debug: {
+      apiBase,
+      checkoutUrl: apiBase + '/checkouts',
+      successUrl: appUrl + '/dashboard?subscription=success',
+      creemStatus: creemResponse.status,
+      creemSessionId: session.id,
+      returnedCheckoutUrl: session.checkout_url,
+      productId: plan.productId,
+      planId: body.planId,
+    },
+  });
   } catch (error) {
     console.error('[Creem] Checkout error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

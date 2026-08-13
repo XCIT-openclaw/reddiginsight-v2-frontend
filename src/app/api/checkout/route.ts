@@ -28,6 +28,23 @@ export async function POST(request: NextRequest) {
     const plan = PLAN_PRODUCTS[body.planId];
     if (!plan) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
 
+    const { data: activeSubscription } = await supabase
+      .from('subscriptions')
+      .select('id, status, plan_id')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'trialing', 'past_due', 'paused', 'scheduled_cancel', 'unpaid'])
+      .maybeSingle();
+
+    if (activeSubscription) {
+      return NextResponse.json(
+        {
+          error: 'You already have an active subscription.',
+          detail: 'Please change your plan from the Pricing page instead of starting a new checkout.',
+        },
+        { status: 409 }
+      );
+    }
+
     const creemApiKey = process.env.CREEM_API_KEY;
     const appUrl = request.nextUrl.origin;  // dynamic, always correct
 

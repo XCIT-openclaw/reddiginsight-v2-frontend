@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,15 @@ interface PricingPlan {
   popular?: boolean
   available: boolean
   features: string[]
+}
+
+interface SubscriptionStatus {
+  plan_id: string | null
+  status: string | null
+  pending_plan: string | null
+  plan_change_requested_at: string | null
+  credits_per_month: number | null
+  current_period_end: string | null
 }
 
 const plans: PricingPlan[] = [
@@ -72,7 +81,24 @@ export default function PricingPage() {
   const { user, profile, refreshProfile } = useAuth()
   const router = useRouter()
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null)
   const currentPlan = profile?.plan || 'free'
+  const hasPlanChangeRequested = Boolean(subscriptionStatus?.plan_change_requested_at)
+  const pendingPlan = subscriptionStatus?.pending_plan || null
+
+  useEffect(() => {
+    if (!user) return
+    let active = true
+    fetch('/api/subscriptions/status')
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (active && data?.subscription) {
+          setSubscriptionStatus(data.subscription)
+        }
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [user])
 
   const handlePurchase = async (plan: PricingPlan) => {
     if (!plan.available) return
@@ -131,6 +157,13 @@ export default function PricingPage() {
     const isDowngrade = plan.id === 'starter' && currentPlan === 'pro'
     if (!isUpgrade && !isDowngrade) return
 
+    if (hasPlanChangeRequested) {
+      toast.error('Plan change already requested', {
+        description: 'You can only change your subscription plan once per billing cycle.',
+      })
+      return
+    }
+
     setLoadingPlan(plan.id)
 
     try {
@@ -159,6 +192,18 @@ export default function PricingPage() {
           duration: 7000,
         })
       }
+
+      setSubscriptionStatus((previous) => ({
+        ...(previous || {
+          plan_id: currentPlan,
+          status: 'active',
+          credits_per_month: null,
+          current_period_end: null,
+        }),
+        pending_plan: isDowngrade ? plan.id : null,
+        plan_change_requested_at: new Date().toISOString(),
+        ...(isUpgrade ? { plan_id: plan.id } : {}),
+      }))
 
       setTimeout(() => { refreshProfile() }, 3500)
     } catch (error) {
@@ -198,6 +243,16 @@ export default function PricingPage() {
           {user && (currentPlan === 'starter' || currentPlan === 'pro') && (
             <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border bg-muted/30 text-sm text-muted-foreground text-center">
               Plan changes: upgrades take effect immediately and grant the new plan&apos;s credits right away. Downgrades take effect at your next billing cycle; your current credits remain available until then.
+            </div>
+          )}
+
+          {user && hasPlanChangeRequested && (
+            <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-700 text-center">
+              {pendingPlan === 'starter'
+                ? 'Your downgrade to Starter is scheduled for the next billing cycle. You can change plans again at the start of that cycle.'
+                : pendingPlan === 'pro'
+                  ? 'Your upgrade to Pro is being activated. You can change plans again at the start of the next billing cycle.'
+                  : 'You have already changed your plan this billing cycle. You can change plans again at the start of the next billing cycle.'}
             </div>
           )}
 
@@ -267,7 +322,7 @@ export default function PricingPage() {
                         handlePurchase(plan)
                       }
                     }}
-                    disabled={loadingPlan !== null || !plan.available || (user ? plan.id === currentPlan : false)}
+                    disabled={loadingPlan !== null || !plan.available || (user ? plan.id === currentPlan : false) || Boolean(user && hasPlanChangeRequested && plan.id !== currentPlan)}
                   >
                     {loadingPlan === plan.id ? (
                       <>

@@ -13,6 +13,29 @@ const PRODUCT_TO_PLAN: Record<string, string> = {
   "prod_7ArQ4AAhRf4LVsIGiE8IgJ": "pro",
 };
 
+function getEventProductId(eventObject: Record<string, any>): string | null {
+  const firstItem = Array.isArray(eventObject.items) ? eventObject.items[0] : null;
+  return (
+    (typeof eventObject.product === "string" ? eventObject.product : null) ||
+    (eventObject.product && typeof eventObject.product.id === "string" ? eventObject.product.id : null) ||
+    (typeof eventObject.product_id === "string" ? eventObject.product_id : null) ||
+    (firstItem && typeof firstItem.product_id === "string" ? firstItem.product_id : null) ||
+    (firstItem && typeof firstItem.product === "string" ? firstItem.product : null) ||
+    (firstItem && firstItem.product && typeof firstItem.product.id === "string" ? firstItem.product.id : null) ||
+    null
+  );
+}
+
+function getEventPlanId(eventObject: Record<string, any>): string | null {
+  const productId = getEventProductId(eventObject);
+  return (
+    (typeof eventObject.metadata?.plan_id === "string" ? eventObject.metadata.plan_id : null) ||
+    (productId ? PRODUCT_TO_PLAN[productId] || null : null) ||
+    null
+  );
+}
+
+
 function verifySignature(payload: string, signature: string | null, secret: string): boolean {
   if (!signature || !secret) {
     console.error("[Creem Webhook] Missing signature or secret", { hasSignature: !!signature, hasSecret: !!secret });
@@ -102,7 +125,7 @@ export async function POST(request: NextRequest) {
               credits_per_month: credits,
               current_period_end: subObj.current_period_end_date || new Date().toISOString(),
               updated_at: new Date().toISOString(),
-            }, { onConflict: "creem_subscription_id" });
+            }, { onConflict: "user_id" });
           }
           console.log("[Creem Webhook] checkout.completed is recurring; deferring credits to subscription.paid:", subId);
           break;
@@ -162,110 +185,160 @@ export async function POST(request: NextRequest) {
             credits_per_month: PLAN_CREDITS[planId] || 0,
             current_period_end: eventObject.current_period_end_date || new Date().toISOString(),
             updated_at: new Date().toISOString(),
-          }, { onConflict: "creem_subscription_id" });
+          }, { onConflict: "user_id" });
         }
         break;
       }
 
       case "subscription.paid": {
         const subId = eventObject.id;
-        console.log("[Creem Webhook] subscription.paid:", subId);
-
-        const firstPaidItem = Array.isArray(eventObject.items) ? eventObject.items[0] : null;
-        const itemProductId =
-          typeof firstPaidItem?.product_id === "string"
-            ? firstPaidItem.product_id
-            : typeof firstPaidItem?.product === "string"
-              ? firstPaidItem.product
-              : firstPaidItem?.product?.id;
-        const productId =
-          typeof eventObject.product === "string"
-            ? eventObject.product
-            : eventObject.product?.id || eventObject.product_id || itemProductId;
-        const planId = eventObject.metadata?.plan_id || PRODUCT_TO_PLAN[productId] || "starter";
+        const planId = getEventPlanId(eventObject) || "starter";
         const subCredits = PLAN_CREDITS[planId] || 0;
+        const paymentId = eventObject.last_transaction_id || eventObject.transaction?.id || eventObject.payment_id || subId;
+
+        console.log("[Creem Webhook] subscription.paid:", { subId, planId, subCredits, paymentId });
 
         let subUserId = eventObject.metadata?.user_id || null;
         if (!subUserId && subId) {
-          const { data: existingSub } = await supabase
+          const { data: existingBySubId } = await supabase
             .from("subscriptions")
             .select("user_id")
             .eq("creem_subscription_id", subId)
-            .single();
-          if (existingSub) subUserId = existingSub.user_id;
-        }
-
-        if (subUserId) {
-          // Dedup check
-          const { data: existingTx } = await supabase
-            .from("transactions")
-            .select("id")
-            .eq("payment_id", subId)
             .maybeSingle();
-
-          if (!existingTx) {
-            // Reset credits for new billing period (not accumulate)
-            await supabase.from("users").update({
-              plan: planId,
-              credits: subCredits,
-              updated_at: new Date().toISOString(),
-            }).eq("id", subUserId);
-
-            await supabase.from("subscriptions").upsert({
-              user_id: subUserId,
-              plan_id: planId,
-              creem_subscription_id: subId,
-              status: "active",
-              credits_per_month: subCredits,
-              current_period_end: eventObject.current_period_end_date || new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            }, { onConflict: "creem_subscription_id" });
-
-            await supabase.from("transactions").insert({
-              user_id: subUserId,
-              amount: eventObject.amount ? eventObject.amount / 100 : 0,
-              credits: subCredits,
-              payment_method: "creem",
-              payment_id: subId,
-              status: "completed",
-              completed_at: new Date().toISOString(),
-            });
-
-            console.log("[Creem Webhook] Credits reset for new period:", subCredits, "user:", subUserId);
-          } else {
-            console.log("[Creem Webhook] subscription.paid already processed:", subId);
-          }
+          subUserId = existingBySubId?.user_id || null;
         }
+
+        if (!subUserId) {
+          console.error("[Creem Webhook] subscription.paid missing user_id:", subId);
+          break;
+        }
+
+        const { data: existingSub } = await supabase
+          .from("subscriptions")
+          .select("id, user_id, plan_id, current_period_start, current_period_end, pending_plan, plan_change_requested_at")
+          .eq("user_id", subUserId)
+          .maybeSingle();
+
+        const { data: existingTx } = await supabase
+          .from("transactions")
+          .select("id")
+          .eq("payment_id", paymentId)
+          .maybeSingle();
+
+        if (existingTx) {
+          console.log("[Creem Webhook] subscription.paid already processed:", paymentId);
+          break;
+        }
+
+        const now = new Date().toISOString();
+        const eventPeriodStart = eventObject.current_period_start_date || eventObject.current_period_start || null;
+        const storedPeriodStart = existingSub?.current_period_start || null;
+        const hasStoredStart = Boolean(storedPeriodStart);
+        const hasEventStart = Boolean(eventPeriodStart);
+        const isNewBillingPeriod =
+          hasEventStart && (!hasStoredStart || eventPeriodStart !== storedPeriodStart);
+
+        const scheduledPendingPlan = existingSub?.pending_plan || null;
+        const existingPlanId = existingSub?.plan_id || null;
+        const isScheduledPlanChange =
+          Boolean(existingSub?.plan_change_requested_at) &&
+          Boolean(scheduledPendingPlan) &&
+          scheduledPendingPlan === planId &&
+          existingPlanId !== planId;
+
+        const shouldClearPlanChange = isNewBillingPeriod || isScheduledPlanChange;
+        const nextPendingPlan = shouldClearPlanChange ? null : (existingSub?.pending_plan ?? null);
+        const nextPlanChangeRequestedAt = shouldClearPlanChange ? null : (existingSub?.plan_change_requested_at ?? null);
+
+        await supabase.from("users").update({
+          plan: planId,
+          credits: subCredits,
+          updated_at: now,
+        }).eq("id", subUserId);
+
+        await supabase.from("subscriptions").upsert({
+          user_id: subUserId,
+          plan_id: planId,
+          creem_subscription_id: subId,
+          status: "active",
+          credits_per_month: subCredits,
+          current_period_start: eventPeriodStart || existingSub?.current_period_start || now,
+          current_period_end: eventObject.current_period_end_date || eventObject.current_period_end || existingSub?.current_period_end || now,
+          pending_plan: nextPendingPlan,
+          plan_change_requested_at: nextPlanChangeRequestedAt,
+          updated_at: now,
+        }, { onConflict: "user_id" });
+
+        await supabase.from("transactions").insert({
+          user_id: subUserId,
+          amount: eventObject.amount ? eventObject.amount / 100 : 0,
+          credits: subCredits,
+          payment_method: "creem",
+          payment_id: paymentId,
+          status: "completed",
+          completed_at: now,
+        });
+
+        console.log("[Creem Webhook] subscription.paid credited:", { subUserId, planId, subCredits, paymentId, isNewBillingPeriod, shouldClearPlanChange });
         break;
       }
 
       case "subscription.update": {
         const subId = eventObject.id;
-        const firstUpdateItem = Array.isArray(eventObject.items) ? eventObject.items[0] : null;
-        const updateItemProductId =
-          typeof firstUpdateItem?.product_id === "string"
-            ? firstUpdateItem.product_id
-            : typeof firstUpdateItem?.product === "string"
-              ? firstUpdateItem.product
-              : firstUpdateItem?.product?.id;
-        const productId =
-          typeof eventObject.product === "string"
-            ? eventObject.product
-            : eventObject.product?.id || eventObject.product_id || updateItemProductId;
-        const planId = eventObject.metadata?.plan_id || PRODUCT_TO_PLAN[productId];
-        const planCredits = planId ? PLAN_CREDITS[planId] : null;
+        const targetPlanId = getEventPlanId(eventObject);
+        const targetCredits = targetPlanId ? (PLAN_CREDITS[targetPlanId] ?? null) : null;
 
-        console.log("[Creem Webhook] subscription.update:", { subId, productId, planId, planCredits });
+        console.log("[Creem Webhook] subscription.update:", { subId, targetPlanId, targetCredits });
 
-        if (subId) {
-          const updatePayload: Record<string, unknown> = {
-            updated_at: new Date().toISOString(),
-          };
-          if (planId) updatePayload.plan_id = planId;
-          if (planCredits !== null && planCredits !== undefined) updatePayload.credits_per_month = planCredits;
-          if (eventObject.current_period_end_date) updatePayload.current_period_end = eventObject.current_period_end_date;
+        const { data: existingSub } = await supabase
+          .from("subscriptions")
+          .select("id, user_id, plan_id, credits_per_month, current_period_start, current_period_end, pending_plan, plan_change_requested_at")
+          .eq("creem_subscription_id", subId)
+          .maybeSingle();
+
+        const now = new Date().toISOString();
+        const currentPlan = existingSub?.plan_id || null;
+        const isUpgrade = targetPlanId === "pro" && currentPlan === "starter";
+        const isDowngrade = targetPlanId === "starter" && currentPlan === "pro";
+
+        const updatePayload: Record<string, unknown> = {
+          updated_at: now,
+        };
+        if (eventObject.current_period_start_date) {
+          updatePayload.current_period_start = eventObject.current_period_start_date;
+        }
+        if (eventObject.current_period_end_date) {
+          updatePayload.current_period_end = eventObject.current_period_end_date;
+        }
+
+        if (isUpgrade) {
+          updatePayload.plan_id = targetPlanId;
+          updatePayload.credits_per_month = targetCredits ?? 0;
+          updatePayload.pending_plan = null;
+          updatePayload.plan_change_requested_at = existingSub?.plan_change_requested_at || now;
+        } else if (isDowngrade) {
+          updatePayload.pending_plan = targetPlanId;
+          updatePayload.plan_change_requested_at = existingSub?.plan_change_requested_at || now;
+        } else if (targetPlanId && targetPlanId !== currentPlan) {
+          // Unknown direction safety: keep the current active plan and record the target as pending.
+          updatePayload.pending_plan = targetPlanId;
+          updatePayload.plan_change_requested_at = existingSub?.plan_change_requested_at || now;
+        }
+
+        if (existingSub?.id) {
+          await supabase.from("subscriptions").update(updatePayload).eq("id", existingSub.id);
+        } else if (subId) {
           await supabase.from("subscriptions").update(updatePayload).eq("creem_subscription_id", subId);
         }
+
+        if (isUpgrade && existingSub?.user_id && targetPlanId && targetCredits !== null) {
+          await supabase.from("users").update({
+            plan: targetPlanId,
+            credits: targetCredits,
+            updated_at: now,
+          }).eq("id", existingSub.user_id);
+        }
+
         break;
       }
 

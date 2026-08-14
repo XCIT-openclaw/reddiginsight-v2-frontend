@@ -387,12 +387,13 @@ function normalizeQueryParams(params: Record<string, unknown>): QueryParams | nu
 
 export default function ChatPage() {
   const router = useRouter();
-  const { user, loading: authLoading, session } = useAuth();
+  const { user, loading: authLoading, session, profile } = useAuth();
   // Initialize with INITIAL_MESSAGE for proper SSR rendering
   // localStorage loading happens client-side in useEffect
   const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
   const [isLoading, setIsLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const hasNoCredits = Boolean(profile && (profile.credits ?? 0) <= 0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const handleClearHistory = () => {
@@ -485,6 +486,10 @@ export default function ChatPage() {
   };
 
   const handleSubmit = async (content: string) => {
+    if (hasNoCredits) {
+      setStreamError('You have no credits available. Please purchase credits to continue chatting.');
+      return;
+    }
     const userMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -803,7 +808,13 @@ export default function ChatPage() {
 
           {/* Input Area */}
           <div className="border-t border-border/30 py-4 px-6 max-w-4xl mx-auto w-full bg-white/80 backdrop-blur-sm dark:bg-gray-800/80">
-            <ChatInput onSubmit={handleSubmit} disabled={authLoading || isLoading} />
+            {hasNoCredits && (
+              <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
+                <span>You have no credits available. Purchase credits to continue chatting.</span>
+                <Link href="/pricing" className="font-semibold underline">Purchase Credits</Link>
+              </div>
+            )}
+            <ChatInput onSubmit={handleSubmit} disabled={authLoading || isLoading || hasNoCredits} />
           </div>
         </div>
         

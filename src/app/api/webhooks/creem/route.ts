@@ -29,8 +29,8 @@ function getEventProductId(eventObject: Record<string, any>): string | null {
 function getEventPlanId(eventObject: Record<string, any>): string | null {
   const productId = getEventProductId(eventObject);
   return (
-    (typeof eventObject.metadata?.plan_id === "string" ? eventObject.metadata.plan_id : null) ||
     (productId ? PRODUCT_TO_PLAN[productId] || null : null) ||
+    (typeof eventObject.metadata?.plan_id === "string" ? eventObject.metadata.plan_id : null) ||
     null
   );
 }
@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
         const subUserId = eventObject.metadata?.user_id;
         if (subUserId && subId) {
           const productId = typeof eventObject.product === "string" ? eventObject.product : eventObject.product?.id;
-          const planId = eventObject.metadata?.plan_id || PRODUCT_TO_PLAN[productId] || "starter";
+          const planId = PRODUCT_TO_PLAN[productId] || eventObject.metadata?.plan_id || "starter";
           await supabase.from("subscriptions").upsert({
             user_id: subUserId,
             plan_id: planId,

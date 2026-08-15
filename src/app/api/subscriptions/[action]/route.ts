@@ -208,6 +208,40 @@ export async function POST(
         });
       }
 
+      if (isUpgrade) {
+        const targetCredits = PLAN_CREDITS[targetPlan] || 0;
+        const now = new Date().toISOString();
+
+        const { error: subscriptionSyncError } = await supabase
+          .from("subscriptions")
+          .update({
+            plan_id: targetPlan,
+            credits_per_month: targetCredits,
+            pending_plan: null,
+            updated_at: now,
+          })
+          .eq("user_id", user.id)
+          .eq("creem_subscription_id", subscriptionId);
+
+        const { error: userSyncError } = await supabase
+          .from("users")
+          .update({
+            plan: targetPlan,
+            credits: targetCredits,
+            updated_at: now,
+          })
+          .eq("id", user.id);
+
+        if (subscriptionSyncError || userSyncError) {
+          console.error("[Creem Subscription] Local upgrade sync failed:", {
+            subscriptionSyncError,
+            userSyncError,
+            userId: user.id,
+            targetPlan,
+          });
+        }
+      }
+
       return NextResponse.json({
         success: true,
         subscription: result,

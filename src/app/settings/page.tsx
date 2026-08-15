@@ -53,6 +53,7 @@ export default function SettingsPage() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
+  const [resumeLoading, setResumeLoading] = useState(false)
 
   const hasSubscriptionCard = Boolean(subscriptionStatus && !['canceled', 'expired'].includes(subscriptionStatus.status || ''))
   const isCancellationScheduled = subscriptionStatus?.status === 'scheduled_cancel'
@@ -146,6 +147,43 @@ export default function SettingsPage() {
       })
     } finally {
       setCancelLoading(false)
+    }
+  }
+
+  const handleReactivateSubscription = async () => {
+    setResumeLoading(true)
+    try {
+      const response = await fetch('/api/subscriptions/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      const data = await response.json()
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Failed to reactivate subscription')
+      }
+
+      setSubscriptionStatus((previous) => ({
+        ...(previous || {
+          plan_id: profile?.plan || 'free',
+          pending_plan: null,
+          plan_change_requested_at: null,
+          credits_per_month: null,
+          current_period_end: null,
+        }),
+        status: 'active',
+      }))
+      toast.success('Subscription reactivated', {
+        description: 'Your subscription will renew as scheduled.',
+        duration: 7000,
+      })
+      setTimeout(() => { loadSubscriptionStatus() }, 1500)
+    } catch (error: any) {
+      toast.error('Failed to reactivate subscription', {
+        description: error?.message || 'Please try again.',
+      })
+    } finally {
+      setResumeLoading(false)
     }
   }
 
@@ -262,7 +300,23 @@ export default function SettingsPage() {
                 </div>
               )}
 
+              {isCancellationScheduled && (
+                <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-700">
+                  Cancellation is scheduled for the end of the current billing cycle. You can reactivate your subscription before that date.
+                </div>
+              )}
+
               <Separator />
+              {isCancellationScheduled && (
+                <Button
+                  className="w-full"
+                  onClick={handleReactivateSubscription}
+                  disabled={resumeLoading}
+                >
+                  {resumeLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                  Reactivate Subscription
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="w-full"

@@ -270,6 +270,22 @@ export async function POST(
         );
     }
 
+    let nextStatus: string | null = null;
+    if (action === "cancel") {
+      nextStatus = body.mode === "immediate" ? "canceled" : "scheduled_cancel";
+    } else if (action === "pause") {
+      nextStatus = "paused";
+    } else if (action === "resume") {
+      nextStatus = "active";
+    }
+
+    if (nextStatus) {
+      await supabase.from("subscriptions").update({
+        status: nextStatus,
+        updated_at: new Date().toISOString(),
+      }).eq("user_id", user.id).eq("creem_subscription_id", subscriptionId);
+    }
+
     return NextResponse.json({ success: true, subscription: result });
   } catch (error) {
     console.error("[Creem Subscription] Action failed:", action, error);

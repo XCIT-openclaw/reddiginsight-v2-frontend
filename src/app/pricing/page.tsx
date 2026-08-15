@@ -85,6 +85,7 @@ export default function PricingPage() {
   const currentPlan = profile?.plan || 'free'
   const hasPlanChangeRequested = Boolean(subscriptionStatus?.plan_change_requested_at)
   const pendingPlan = subscriptionStatus?.pending_plan || null
+  const isCancellationScheduled = subscriptionStatus?.status === 'scheduled_cancel'
 
   useEffect(() => {
     if (!user) return
@@ -152,6 +153,13 @@ export default function PricingPage() {
 
   const handlePlanChange = async (plan: PricingPlan) => {
     if (!plan.available || !plan.productId || !user) return
+
+    if (isCancellationScheduled) {
+      toast.error('Subscription cancellation scheduled', {
+        description: 'Reactivate your subscription from Settings before changing plans.',
+      })
+      return
+    }
 
     const isUpgrade = plan.id === 'pro' && currentPlan === 'starter'
     const isDowngrade = plan.id === 'starter' && currentPlan === 'pro'
@@ -240,9 +248,23 @@ export default function PricingPage() {
             </div>
           )}
 
-          {user && (currentPlan === 'starter' || currentPlan === 'pro') && (
+          {user && !isCancellationScheduled && (currentPlan === 'starter' || currentPlan === 'pro') && (
             <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border bg-muted/30 text-sm text-muted-foreground text-center">
               Plan changes: upgrades take effect immediately and grant the new plan&apos;s credits right away. Downgrades take effect at your next billing cycle; your current credits remain available until then.
+            </div>
+          )}
+
+          {user && isCancellationScheduled && (
+            <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-700 text-center">
+              Your subscription is scheduled to cancel at the end of the current billing cycle. Go to{' '}
+              <button
+                type="button"
+                className="underline font-medium text-amber-800 dark:text-amber-300"
+                onClick={() => router.push('/settings')}
+              >
+                Settings
+              </button>{' '}
+              to reactivate it if you want to keep your plan.
             </div>
           )}
 
@@ -322,7 +344,7 @@ export default function PricingPage() {
                         handlePurchase(plan)
                       }
                     }}
-                    disabled={loadingPlan !== null || !plan.available || (user ? plan.id === currentPlan : false) || Boolean(user && hasPlanChangeRequested && plan.id !== currentPlan)}
+                    disabled={loadingPlan !== null || !plan.available || (user ? plan.id === currentPlan : false) || Boolean(user && hasPlanChangeRequested && plan.id !== currentPlan) || Boolean(user && isCancellationScheduled && plan.id !== currentPlan)}
                   >
                     {loadingPlan === plan.id ? (
                       <>

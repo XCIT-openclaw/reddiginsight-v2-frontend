@@ -297,7 +297,53 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
 
         const now = new Date().toISOString();
+
+        // Initial subscription sync must not consume the one-plan-change slot.
+        if (!existingSub?.id) {
+          if (subId) {
+            const subUserId = eventObject.metadata?.user_id || null;
+            if (subUserId) {
+              await supabase.from("subscriptions").upsert({
+                user_id: subUserId,
+                plan_id: targetPlanId || "starter",
+                creem_subscription_id: subId,
+                status: "active",
+                credits_per_month: targetCredits ?? PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
+                current_period_start: eventObject.current_period_start_date || null,
+                current_period_end: eventObject.current_period_end_date || now,
+                pending_plan: null,
+                plan_change_requested_at: null,
+                updated_at: now,
+              }, { onConflict: "user_id" });
+            } else {
+              const initialPayload: Record<string, unknown> = {
+                plan_id: targetPlanId || "starter",
+                credits_per_month: targetCredits ?? PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
+                current_period_start: eventObject.current_period_start_date || null,
+                current_period_end: eventObject.current_period_end_date || now,
+                pending_plan: null,
+                plan_change_requested_at: null,
+                updated_at: now,
+              };
+              await supabase.from("subscriptions").update(initialPayload).eq("creem_subscription_id", subId);
+            }
+          }
+          break;
+        }
+
         const currentPlan = existingSub?.plan_id || null;
+        const isInitialSync = Boolean(existingSub?.id) && !currentPlan && Boolean(targetPlanId);
+        if (isInitialSync) {
+          await supabase.from("subscriptions").update({
+            plan_id: targetPlanId,
+            credits_per_month: targetCredits ?? PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
+            pending_plan: null,
+            plan_change_requested_at: null,
+            updated_at: now,
+          }).eq("id", existingSub.id);
+          break;
+        }
+
         const isUpgrade = targetPlanId === "pro" && currentPlan === "starter";
         const isDowngrade = targetPlanId === "starter" && currentPlan === "pro";
 

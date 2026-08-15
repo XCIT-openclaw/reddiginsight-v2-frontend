@@ -3,8 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import {
   cancelCreemSubscription,
   CreemApiError,
+  getCreemCustomerId,
   pauseCreemSubscription,
   resumeCreemSubscription,
+  updateCreemCustomerMetadata,
   updateCreemSubscription,
   upgradeCreemSubscription,
 } from "@/lib/creem";
@@ -238,6 +240,30 @@ export async function POST(
             userSyncError,
             userId: user.id,
             targetPlan,
+          });
+        }
+
+        const customerId = getCreemCustomerId(result);
+        if (customerId) {
+          try {
+            await updateCreemCustomerMetadata(customerId, {
+              plan_id: targetPlan,
+              credits: targetCredits,
+              user_id: user.id,
+            });
+          } catch (metadataError) {
+            console.error("[Creem Subscription] Customer metadata sync failed:", {
+              customerId,
+              metadataError,
+              userId: user.id,
+              targetPlan,
+            });
+          }
+        } else {
+          console.error("[Creem Subscription] Customer metadata sync skipped: customer_id missing", {
+            userId: user.id,
+            targetPlan,
+            result,
           });
         }
       }

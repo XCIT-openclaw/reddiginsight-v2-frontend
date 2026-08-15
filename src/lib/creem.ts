@@ -95,6 +95,30 @@ async function creemRequest<T>(
   return data as T;
 }
 
+export function getCreemCustomerId(payload: unknown): string | null {
+  const obj = payload as Record<string, any> | null;
+  if (!obj) return null;
+
+  if (typeof obj.customer === "string") return obj.customer;
+  if (obj.customer && typeof obj.customer.id === "string") return obj.customer.id;
+  if (typeof obj.customer_id === "string") return obj.customer_id;
+
+  return null;
+}
+
+export async function updateCreemCustomerMetadata(
+  customerId: string,
+  metadata: Record<string, unknown>
+): Promise<unknown> {
+  return creemRequest(`/customers`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      customer_id: customerId,
+      metadata,
+    }),
+  });
+}
+
 export async function updateCreemSubscription(
   subscriptionId: string,
   payload: CreemSubscriptionUpdatePayload

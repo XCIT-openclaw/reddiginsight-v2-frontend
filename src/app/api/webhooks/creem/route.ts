@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
+import {
+  getCreemCustomerId,
+  updateCreemCustomerMetadata,
+} from "@/lib/creem";
 
 const PLAN_CREDITS: Record<string, number> = {
   starter: 10,
@@ -256,6 +260,31 @@ export async function POST(request: NextRequest) {
           updated_at: now,
         }).eq("id", subUserId);
 
+        if (existingPlanId && existingPlanId !== planId) {
+          const customerId = getCreemCustomerId(eventObject);
+          if (customerId) {
+            try {
+              await updateCreemCustomerMetadata(customerId, {
+                plan_id: planId,
+                credits: subCredits,
+                user_id: subUserId,
+              });
+            } catch (metadataError) {
+              console.error("[Creem Webhook] Customer metadata sync failed during paid:", {
+                customerId,
+                metadataError,
+                userId: subUserId,
+                planId,
+              });
+            }
+          } else {
+            console.error("[Creem Webhook] Customer metadata sync skipped during paid: customer_id missing", {
+              subId,
+              planId,
+            });
+          }
+        }
+
         await supabase.from("subscriptions").upsert({
           user_id: subUserId,
           plan_id: planId,
@@ -383,6 +412,29 @@ export async function POST(request: NextRequest) {
             credits: targetCredits,
             updated_at: now,
           }).eq("id", existingSub.user_id);
+
+          const customerId = getCreemCustomerId(eventObject);
+          if (customerId) {
+            try {
+              await updateCreemCustomerMetadata(customerId, {
+                plan_id: targetPlanId,
+                credits: targetCredits,
+                user_id: existingSub.user_id,
+              });
+            } catch (metadataError) {
+              console.error("[Creem Webhook] Customer metadata sync failed:", {
+                customerId,
+                metadataError,
+                userId: existingSub.user_id,
+                targetPlanId,
+              });
+            }
+          } else {
+            console.error("[Creem Webhook] Customer metadata sync skipped: customer_id missing", {
+              subId,
+              targetPlanId,
+            });
+          }
         }
 
         break;

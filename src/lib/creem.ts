@@ -137,6 +137,27 @@ export async function updateCreemCustomerMetadata(
   }
 }
 
+export async function findCreemCustomerIdByEmail(email: string): Promise<string | null> {
+  const data = await creemRequest<Record<string, any> | null>(
+    `/customers?email=${encodeURIComponent(email)}`
+  );
+
+  if (!data) return null;
+  const customer = Array.isArray(data) ? data[0] : data;
+  if (!customer) return null;
+  if (typeof customer.id === "string") return customer.id;
+  return getCreemCustomerId(customer);
+}
+
+export async function updateCreemCustomerMetadataByEmail(
+  email: string,
+  metadata: Record<string, unknown>
+): Promise<unknown | null> {
+  const customerId = await findCreemCustomerIdByEmail(email);
+  if (!customerId) return null;
+  return updateCreemCustomerMetadata(customerId, metadata);
+}
+
 export async function updateCreemSubscription(
   subscriptionId: string,
   payload: CreemSubscriptionUpdatePayload

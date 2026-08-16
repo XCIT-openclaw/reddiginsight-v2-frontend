@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import {
-  getCreemCustomerId,
-  updateCreemCustomerMetadata,
+  updateCreemCustomerMetadataByEmail,
 } from "@/lib/creem";
 
 const PLAN_CREDITS: Record<string, number> = {
@@ -237,19 +236,41 @@ export async function POST(request: NextRequest) {
         const now = new Date().toISOString();
         const eventPeriodStart = eventObject.current_period_start_date || eventObject.current_period_start || null;
         const eventPeriodEnd = eventObject.current_period_end_date || eventObject.current_period_end || null;
+        const nextTransactionDate = eventObject.next_transaction_date || null;
         const storedPeriodEnd = existingSub?.current_period_end || null;
-        // Proration payments can arrive with a different period_start but the same period_end.
-        // Only treat the event as a new billing cycle when the period end actually moves forward.
+        const billingAnchor = nextTransactionDate || null;
+
+        const fullPlanPriceCents: Record<string, number> = {
+          starter: 990,
+          pro: 2990,
+        };
+        const eventAmountCents =
+          typeof eventObject.amount === "number"
+            ? eventObject.amount
+            : eventObject.amount
+              ? Number(eventObject.amount)
+              : null;
+        const isProrationAmount =
+          eventAmountCents !== null &&
+          eventAmountCents > 0 &&
+          eventAmountCents < (fullPlanPriceCents[planId] || Number.POSITIVE_INFINITY);
+
+        // Only clear the one-plan-change lock when the next billing anchor moves forward,
+        // and the paid amount is not a proration amount.
         const isNewBillingPeriod =
-          Boolean(eventPeriodEnd) &&
+          Boolean(billingAnchor) &&
           Boolean(storedPeriodEnd) &&
-          eventPeriodEnd !== storedPeriodEnd;
+          new Date(billingAnchor).getTime() > new Date(storedPeriodEnd).getTime() &&
+          !isProrationAmount;
 
         console.log("[Creem Webhook] subscription.paid period check:", {
           subId,
           eventPeriodStart,
           eventPeriodEnd,
+          nextTransactionDate,
           storedPeriodEnd,
+          eventAmountCents,
+          isProrationAmount,
           isNewBillingPeriod,
         });
 
@@ -272,26 +293,40 @@ export async function POST(request: NextRequest) {
         }).eq("id", subUserId);
 
         if (eventObject.metadata?.plan_id !== planId) {
-          const customerId = getCreemCustomerId(eventObject);
-          if (customerId) {
+          const { data: subUser } = await supabase
+            .from("users")
+            .select("email")
+            .eq("id", subUserId)
+            .maybeSingle();
+
+          if (subUser?.email) {
             try {
-              await updateCreemCustomerMetadata(customerId, {
+              const metadataSynced = await updateCreemCustomerMetadataByEmail(subUser.email, {
                 plan_id: planId,
                 credits: subCredits,
                 user_id: subUserId,
               });
+
+              if (!metadataSynced) {
+                console.error("[Creem Webhook] Customer metadata sync skipped during paid: customer not found by email", {
+                  subId,
+                  planId,
+                  userId: subUserId,
+                });
+              }
             } catch (metadataError) {
               console.error("[Creem Webhook] Customer metadata sync failed during paid:", {
-                customerId,
+                email: subUser.email,
                 metadataError,
                 userId: subUserId,
                 planId,
               });
             }
           } else {
-            console.error("[Creem Webhook] Customer metadata sync skipped during paid: customer_id missing", {
+            console.error("[Creem Webhook] Customer metadata sync skipped during paid: user email missing", {
               subId,
               planId,
+              userId: subUserId,
             });
           }
         }
@@ -426,26 +461,40 @@ export async function POST(request: NextRequest) {
         }
 
         if (existingSub?.user_id && targetPlanId && eventObject.metadata?.plan_id !== targetPlanId) {
-          const customerId = getCreemCustomerId(eventObject);
-          if (customerId) {
+          const { data: subUser } = await supabase
+            .from("users")
+            .select("email")
+            .eq("id", existingSub.user_id)
+            .maybeSingle();
+
+          if (subUser?.email) {
             try {
-              await updateCreemCustomerMetadata(customerId, {
+              const metadataSynced = await updateCreemCustomerMetadataByEmail(subUser.email, {
                 plan_id: targetPlanId,
                 credits: targetCredits ?? PLAN_CREDITS[targetPlanId] ?? 0,
                 user_id: existingSub.user_id,
               });
+
+              if (!metadataSynced) {
+                console.error("[Creem Webhook] Customer metadata sync skipped: customer not found by email", {
+                  subId,
+                  targetPlanId,
+                  userId: existingSub.user_id,
+                });
+              }
             } catch (metadataError) {
               console.error("[Creem Webhook] Customer metadata sync failed:", {
-                customerId,
+                email: subUser.email,
                 metadataError,
                 userId: existingSub.user_id,
                 targetPlanId,
               });
             }
           } else {
-            console.error("[Creem Webhook] Customer metadata sync skipped: customer_id missing", {
+            console.error("[Creem Webhook] Customer metadata sync skipped: user email missing", {
               subId,
               targetPlanId,
+              userId: existingSub.user_id,
             });
           }
         }

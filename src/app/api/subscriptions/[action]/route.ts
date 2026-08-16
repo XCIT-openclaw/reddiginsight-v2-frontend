@@ -3,10 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import {
   cancelCreemSubscription,
   CreemApiError,
-  getCreemCustomerId,
   pauseCreemSubscription,
   resumeCreemSubscription,
-  updateCreemCustomerMetadata,
+  updateCreemCustomerMetadataByEmail,
   updateCreemSubscription,
   upgradeCreemSubscription,
 } from "@/lib/creem";
@@ -243,27 +242,33 @@ export async function POST(
           });
         }
 
-        const customerId = getCreemCustomerId(result);
-        if (customerId) {
+        if (user.email) {
           try {
-            await updateCreemCustomerMetadata(customerId, {
+            const metadataSynced = await updateCreemCustomerMetadataByEmail(user.email, {
               plan_id: targetPlan,
               credits: targetCredits,
               user_id: user.id,
             });
+
+            if (!metadataSynced) {
+              console.error("[Creem Subscription] Customer metadata sync skipped: customer not found by email", {
+                userId: user.id,
+                email: user.email,
+                targetPlan,
+              });
+            }
           } catch (metadataError) {
             console.error("[Creem Subscription] Customer metadata sync failed:", {
-              customerId,
+              email: user.email,
               metadataError,
               userId: user.id,
               targetPlan,
             });
           }
         } else {
-          console.error("[Creem Subscription] Customer metadata sync skipped: customer_id missing", {
+          console.error("[Creem Subscription] Customer metadata sync skipped: user email missing", {
             userId: user.id,
             targetPlan,
-            result,
           });
         }
       }

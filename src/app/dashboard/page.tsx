@@ -568,7 +568,7 @@ setIsLoading(true)
               <div className="space-y-2">
                 <Label htmlFor="maxPosts">Max Posts</Label>
                 <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
-                  <p className="font-medium text-sm">{maxPosts ?? (profile?.plan === 'pro' ? 300 : 100)}</p>
+                  <p className="font-medium text-sm">{(profile?.plan === 'starter' || profile?.plan === 'pro') ? 300 : 100}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">The maximum number of posts analyzed</p>
               </div>

@@ -114,7 +114,7 @@ export default function TermsPage() {
                 
                 <ul className="space-y-2">
                   <li>• <strong>Free Tier:</strong> New accounts receive 1 free credit to try the service</li>
-                  <li>• <strong>Pro Plan:</strong> Analyze up to 300 posts per subreddit search, priority processing, and advanced export options</li>
+                  <li>• <strong>Paid Plans (Starter & Pro):</strong> Analyze up to 300 posts per subreddit search. Pro also includes priority processing and advanced export options</li>
                   <li>• <strong>AI Technology:</strong> Powered by DeepSeek AI models for sentiment analysis and insight generation</li>
                   <li>• <strong>Analysis Tools:</strong> Sentiment breakdown, PMF scoring, key topic extraction, and actionable recommendations</li>
                   <li>• <strong>Report Management:</strong> Save, export, and revisit your analysis reports anytime</li>

@@ -236,11 +236,22 @@ export async function POST(request: NextRequest) {
 
         const now = new Date().toISOString();
         const eventPeriodStart = eventObject.current_period_start_date || eventObject.current_period_start || null;
-        const storedPeriodStart = existingSub?.current_period_start || null;
-        const hasStoredStart = Boolean(storedPeriodStart);
-        const hasEventStart = Boolean(eventPeriodStart);
+        const eventPeriodEnd = eventObject.current_period_end_date || eventObject.current_period_end || null;
+        const storedPeriodEnd = existingSub?.current_period_end || null;
+        // Proration payments can arrive with a different period_start but the same period_end.
+        // Only treat the event as a new billing cycle when the period end actually moves forward.
         const isNewBillingPeriod =
-          hasEventStart && (!hasStoredStart || eventPeriodStart !== storedPeriodStart);
+          Boolean(eventPeriodEnd) &&
+          Boolean(storedPeriodEnd) &&
+          eventPeriodEnd !== storedPeriodEnd;
+
+        console.log("[Creem Webhook] subscription.paid period check:", {
+          subId,
+          eventPeriodStart,
+          eventPeriodEnd,
+          storedPeriodEnd,
+          isNewBillingPeriod,
+        });
 
         const scheduledPendingPlan = existingSub?.pending_plan || null;
         const existingPlanId = existingSub?.plan_id || null;
@@ -260,7 +271,7 @@ export async function POST(request: NextRequest) {
           updated_at: now,
         }).eq("id", subUserId);
 
-        if (existingPlanId && existingPlanId !== planId) {
+        if (eventObject.metadata?.plan_id !== planId) {
           const customerId = getCreemCustomerId(eventObject);
           if (customerId) {
             try {
@@ -412,13 +423,15 @@ export async function POST(request: NextRequest) {
             credits: targetCredits,
             updated_at: now,
           }).eq("id", existingSub.user_id);
+        }
 
+        if (existingSub?.user_id && targetPlanId && eventObject.metadata?.plan_id !== targetPlanId) {
           const customerId = getCreemCustomerId(eventObject);
           if (customerId) {
             try {
               await updateCreemCustomerMetadata(customerId, {
                 plan_id: targetPlanId,
-                credits: targetCredits,
+                credits: targetCredits ?? PLAN_CREDITS[targetPlanId] ?? 0,
                 user_id: existingSub.user_id,
               });
             } catch (metadataError) {

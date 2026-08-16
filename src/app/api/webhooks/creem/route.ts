@@ -502,7 +502,34 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      case "subscription.canceled":
+      case "subscription.canceled": {
+        const subId = eventObject.id;
+        console.log("[Creem Webhook] Subscription canceled (terminal):", subId);
+        if (subId) {
+          const now = new Date().toISOString();
+          await supabase.from("subscriptions").update({
+            status: "canceled",
+            updated_at: now,
+          }).eq("creem_subscription_id", subId);
+
+          const { data: canceledSub } = await supabase
+            .from("subscriptions")
+            .select("user_id")
+            .eq("creem_subscription_id", subId)
+            .maybeSingle();
+
+          if (canceledSub?.user_id) {
+            await supabase.from("users").update({
+              credits: 0,
+              plan: "free",
+              updated_at: now,
+            }).eq("id", canceledSub.user_id);
+            console.log("[Creem Webhook] Reset user to Free after canceled subscription:", canceledSub.user_id);
+          }
+        }
+        break;
+      }
+
       case "subscription.paused":
       case "subscription.scheduled_cancel":
       case "subscription.past_due":
@@ -511,7 +538,6 @@ export async function POST(request: NextRequest) {
         console.log("[Creem Webhook] Subscription lifecycle:", eventType, subId);
         if (subId) {
           const statusMap: Record<string, string> = {
-            "subscription.canceled": "canceled",
             "subscription.paused": "paused",
             "subscription.past_due": "past_due",
             "subscription.scheduled_cancel": "scheduled_cancel",

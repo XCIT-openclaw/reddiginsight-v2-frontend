@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Check, Zap, CreditCard, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -82,6 +83,7 @@ export default function PricingPage() {
   const router = useRouter()
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null)
+  const [pendingUpgrade, setPendingUpgrade] = useState<PricingPlan | null>(null)
   const currentPlan = profile?.plan || 'free'
   const hasPlanChangeRequested = Boolean(subscriptionStatus?.plan_change_requested_at)
   const pendingPlan = subscriptionStatus?.pending_plan || null
@@ -151,7 +153,7 @@ export default function PricingPage() {
     }
   }
 
-  const handlePlanChange = async (plan: PricingPlan) => {
+  const handlePlanChange = (plan: PricingPlan) => {
     if (!plan.available || !plan.productId || !user) return
 
     if (isCancellationScheduled) {
@@ -172,6 +174,17 @@ export default function PricingPage() {
       return
     }
 
+    if (isUpgrade) {
+      setPendingUpgrade(plan)
+      return
+    }
+
+    executePlanChange(plan)
+  }
+
+  const executePlanChange = async (plan: PricingPlan) => {
+    const isUpgrade = plan.id === 'pro' && currentPlan === 'starter'
+    const isDowngrade = plan.id === 'starter' && currentPlan === 'pro'
     setLoadingPlan(plan.id)
 
     try {
@@ -191,7 +204,9 @@ export default function PricingPage() {
 
       if (isUpgrade) {
         toast.success('Upgrade requested', {
-          description: 'Your Pro plan is being activated. You will receive 30 credits immediately, and only the prorated difference will be charged for the rest of this billing cycle.',
+          description: typeof data.credits === 'number'
+            ? 'Your Pro plan is active. Your new balance is ' + data.credits + ' credits. Only the prorated difference is charged for the rest of this billing cycle.'
+            : 'Your Pro plan is active. Your remaining Starter credits carry over, plus up to 20 additional credits (maximum 30).',
           duration: 7000,
         })
       } else {
@@ -213,6 +228,7 @@ export default function PricingPage() {
         ...(isUpgrade ? { plan_id: plan.id } : {}),
       }))
 
+      setPendingUpgrade(null)
       setTimeout(() => { refreshProfile() }, 3500)
     } catch (error) {
       toast.error('Plan change failed', {
@@ -223,6 +239,10 @@ export default function PricingPage() {
     }
   }
 
+  const upgradePeriodEnd = subscriptionStatus?.current_period_end ? new Date(subscriptionStatus.current_period_end) : null
+  const upgradeDaysRemaining = upgradePeriodEnd
+    ? Math.max(0, Math.ceil((upgradePeriodEnd.getTime() - Date.now()) / (24 * 60 * 60 * 1000)))
+    : null
   return (
     <>
       <DashboardNav />
@@ -250,7 +270,7 @@ export default function PricingPage() {
 
           {user && !isCancellationScheduled && (currentPlan === 'starter' || currentPlan === 'pro') && (
             <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border bg-muted/30 text-sm text-muted-foreground text-center">
-              Plan changes: upgrades take effect immediately and grant the new plan&apos;s credits right away. Downgrades take effect at your next billing cycle; your current credits remain available until then.
+              Plan changes: upgrades take effect immediately. Your remaining credits carry over and you receive the plan difference, up to the new plan&apos;s monthly maximum. Downgrades take effect at your next billing cycle; your current credits remain available until then.
             </div>
           )}
 
@@ -313,7 +333,7 @@ export default function PricingPage() {
                   )}
                   {user && plan.id === 'pro' && currentPlan === 'starter' && (
                     <div className="mt-2 text-xs text-muted-foreground">
-                      Upgrade now to get 30 credits immediately. You will only pay the prorated difference for the rest of this billing cycle.
+                      Upgrade now to keep your remaining credits and receive the 20-credit plan difference, for a maximum balance of 30. You will only pay the prorated difference for the rest of this billing cycle.
                     </div>
                   )}
                   {user && plan.id === 'starter' && currentPlan === 'pro' && (
@@ -418,6 +438,42 @@ export default function PricingPage() {
           )}
         </div>
       </div>
+
+      <Dialog open={Boolean(pendingUpgrade)} onOpenChange={(open) => !open && !loadingPlan && setPendingUpgrade(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm your upgrade to Pro</DialogTitle>
+            <DialogDescription>
+              Your plan will change immediately. Your remaining Starter credits carry over, and you receive the 20-credit plan difference, for a maximum balance of 30. Creem will charge the remaining-cycle difference now.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 rounded-lg border bg-muted/40 p-4 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Current plan</span>
+              <span className="font-medium">Starter {String.fromCharCode(183)} 10 credits</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">New plan</span>
+              <span className="font-medium">Pro {String.fromCharCode(183)} 30 credits per month</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Remaining in cycle</span>
+              <span className="font-medium">{upgradeDaysRemaining === null ? 'Current cycle' : upgradeDaysRemaining + (upgradeDaysRemaining === 1 ? ' day' : ' days')}</span>
+            </div>
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
+              The exact prorated difference is calculated and charged by Creem when you confirm. Your next regular Pro charge is $29.90 and includes 30 credits for that month.
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingUpgrade(null)} disabled={loadingPlan !== null}>
+              Cancel
+            </Button>
+            <Button onClick={() => pendingUpgrade && executePlanChange(pendingUpgrade)} disabled={loadingPlan !== null}>
+              {loadingPlan ? 'Processing...' : 'Confirm upgrade'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

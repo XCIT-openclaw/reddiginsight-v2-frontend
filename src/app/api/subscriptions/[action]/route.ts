@@ -5,6 +5,8 @@ import {
   CreemApiError,
   pauseCreemSubscription,
   resumeCreemSubscription,
+  getCreemCustomerId,
+  updateCreemCustomerMetadata,
   updateCreemCustomerMetadataByEmail,
   updateCreemSubscription,
   upgradeCreemSubscription,
@@ -209,8 +211,21 @@ export async function POST(
         });
       }
 
+      let upgradedCredits: number | null = null;
+
       if (isUpgrade) {
         const targetCredits = PLAN_CREDITS[targetPlan] || 0;
+        const currentPlanCredits = PLAN_CREDITS[currentPlan || ""] || 0;
+        const { data: currentUser } = await supabase
+          .from("users")
+          .select("credits")
+          .eq("id", user.id)
+          .maybeSingle();
+        const currentCredits = Math.max(0, Number(currentUser?.credits) || 0);
+        upgradedCredits = Math.min(
+          targetCredits,
+          currentCredits + Math.max(0, targetCredits - currentPlanCredits)
+        );
         const now = new Date().toISOString();
 
         const { error: subscriptionSyncError } = await supabase
@@ -228,7 +243,7 @@ export async function POST(
           .from("users")
           .update({
             plan: targetPlan,
-            credits: targetCredits,
+            credits: upgradedCredits,
             updated_at: now,
           })
           .eq("id", user.id);
@@ -242,35 +257,36 @@ export async function POST(
           });
         }
 
-        if (user.email) {
-          try {
-            const metadataSynced = await updateCreemCustomerMetadataByEmail(user.email, {
-              plan_id: targetPlan,
-              credits: targetCredits,
-              user_id: user.id,
-            });
+        try {
+          const responseCustomerId = getCreemCustomerId(result);
+          const metadata = {
+            plan_id: targetPlan,
+            credits: targetCredits,
+            user_id: user.id,
+          };
+          const metadataSynced = responseCustomerId
+            ? await updateCreemCustomerMetadata(responseCustomerId, metadata)
+            : user.email
+              ? await updateCreemCustomerMetadataByEmail(user.email, metadata)
+              : null;
 
-            if (!metadataSynced) {
-              console.error("[Creem Subscription] Customer metadata sync skipped: customer not found by email", {
-                userId: user.id,
-                email: user.email,
-                targetPlan,
-              });
-            }
-          } catch (metadataError) {
-            console.error("[Creem Subscription] Customer metadata sync failed:", {
-              email: user.email,
-              metadataError,
+          if (!metadataSynced) {
+            console.error("[Creem Subscription] Customer metadata sync skipped: customer not found", {
               userId: user.id,
+              email: user.email,
+              responseCustomerId,
               targetPlan,
             });
           }
-        } else {
-          console.error("[Creem Subscription] Customer metadata sync skipped: user email missing", {
+        } catch (metadataError) {
+          console.error("[Creem Subscription] Customer metadata sync failed:", {
+            email: user.email,
+            metadataError,
             userId: user.id,
             targetPlan,
           });
         }
+
       }
 
       return NextResponse.json({
@@ -278,6 +294,7 @@ export async function POST(
         subscription: result,
         pendingPlan: isDowngrade ? targetPlan : null,
         planChangeRequestedAt: requestedAt,
+        ...(isUpgrade ? { credits: upgradedCredits } : {}),
       });
     } catch (error) {
       await rollbackClaim();

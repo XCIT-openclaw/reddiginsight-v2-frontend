@@ -75,9 +75,11 @@ order by created_at desc;
 | TC-UP-02 | 升级按钮状态正确 | 观察 Pricing 卡片 | Starter 显示 `Current Plan` 且禁用；Pro 显示 `Upgrade to Pro`；请求期间显示处理状态且其他按钮禁用 |
 | TC-UP-03 | 升级后卡片状态切换 | 等待升级完成 | Pro 显示 `Current Plan`；Starter 显示 `Downgrade to Starter`；Pricing 页出现本周期已变更套餐提示 |
 | TC-UP-04 | 升级失败不占用变更次数 | 直接调用 `/api/subscriptions/upgrade`，请求体缺少 `product_id` | 返回 400；`subscriptions.plan_change_requested_at` 仍为 null；随后补齐 `product_id` 重新升级可以成功 |
-| TC-UP-05 | 升级 webhook 不重复发 Credits | 升级后等待 Creem 正常投递 `subscription.update` 和 `subscription.paid` | `transactions` 只新增一条 proration 支付记录；`users.credits` 保持 30，不累加成 60 |
+| TC-UP-05 | Upgrade proration does not grant full credits | After upgrade, wait for subscription.update and subscription.paid | Only one proration transaction is recorded with 20 credits. users.credits keeps the calculated balance (for example 25 when 5 credits remained); it must not reset to 30 or increase to 45 |
 | TC-UP-06 | 升级后变更锁保留 | 升级成功并收到 webhook 后，直接再次调用升级或降级 API | 返回 409；`subscriptions.plan_change_requested_at` 仍非空，不能被 `subscription.update` 或 `subscription.paid` 清空 |
 | TC-UP-07 | 升级后同步 Creem customer metadata | 升级完成后用 Creem API 查询该邮箱对应 customer | customer metadata 的 `plan_id=pro`、`credits=30`、`user_id` 保持原值 |
+| TC-UP-08 | Confirm proration before upgrade | As a Starter user, click `Upgrade to Pro` | A confirmation dialog appears first and shows remaining days, the credit-balance rule, and states that Creem calculates the exact prorated difference. Cancel does not call the API; Confirm calls it. |
+| TC-UP-09 | Upgrade preserves remaining balance | Test a Starter account upgrade with 10, 5, and 0 credits remaining before upgrade | 10 remaining becomes 30; 5 remaining becomes 25; 0 remaining becomes 20. In all cases subscriptions.credits_per_month=30 and later webhooks do not add more credits |
 
 ---
 
@@ -138,13 +140,13 @@ order by created_at desc;
 
 | ID | 场景 | 预期结果 |
 | --- | --- | --- |
-| TC-WH-01 | `subscription.update` 升级 | `subscriptions.plan_id=pro`；`users.credits=30`；不新增 transaction |
+| TC-WH-01 | `subscription.update` 升级 | `subscriptions.plan_id=pro`；`users.credits=remaining balance + 20, capped at 30`；不新增 transaction |
 | TC-WH-02 | `subscription.update` 降级 | `subscriptions.plan_id` 仍为当前套餐；只写 `pending_plan`；`users.credits` 不变 |
 | TC-WH-03 | `subscription.paid` 交易去重 | 不同计费周期各生成一条 transaction；重复投递同一支付事件不会重复加 Credits |
 | TC-WH-04 | `subscription.scheduled_cancel` 状态同步 | `subscriptions.status=scheduled_cancel`；不清零 credits |
-| TC-WH-05 | `subscription.expired` 重置 Credits | `users.credits=0`；`users.plan=free`；`subscriptions.status=expired` |
+| TC-WH-05 | `subscription.expired` resets subscription and credits | `users.credits=0`; `users.plan=free`; `subscriptions.status=expired`; `subscriptions.plan_id=free`; `subscriptions.credits_per_month=NULL`; `pending_plan=null`; `plan_change_requested_at=null` |
 | TC-WH-06 | 非法 webhook 签名 | `/api/webhooks/creem` 返回 401，且不修改数据库 |
-| TC-WH-07 | `subscription.canceled` 终态重置 | `subscriptions.status=canceled`；`users.plan=free`；`users.credits=0` |
+| TC-WH-07 | `subscription.canceled` terminal reset | `subscriptions.status=canceled`; `subscriptions.plan_id=free`; `subscriptions.credits_per_month=NULL`; `pending_plan=null`; `plan_change_requested_at=null`; `users.plan=free`; `users.credits=0` |
 | TC-WH-08 | `subscription.paid` 金额字段 | 若 Creem payload 不含 `amount`，`transactions.amount=0`；`credits` 仍按套餐写入 10 或 30 |
 | TC-WH-09 | `subscription.update` 首次同步 | 初始订阅同步不设置 `plan_change_requested_at`，不占用每周期变更次数 |
 | TC-WH-10 | `refund.created` 退款回归 | 写一条负数 transaction；用户 credits 按原交易 credits 扣回，且不低于 0 |

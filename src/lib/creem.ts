@@ -114,27 +114,61 @@ export function getCreemCustomerId(payload: unknown): string | null {
   return null;
 }
 
+export function getCreemTransactionId(payload: unknown): string | null {
+  const candidates: unknown[] = [payload];
+  const root = payload as Record<string, any> | null;
+  if (root) {
+    candidates.push(root.refund, root.transaction, root.payment, root.data, root.object);
+  }
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string") return candidate;
+    const obj = candidate as Record<string, any> | null;
+    if (!obj || typeof obj !== "object") continue;
+
+    if (obj.transaction && typeof obj.transaction.id === "string") return obj.transaction.id;
+    if (typeof obj.transaction_id === "string") return obj.transaction_id;
+    if (typeof obj.last_transaction_id === "string") return obj.last_transaction_id;
+    if (typeof obj.payment_id === "string") return obj.payment_id;
+    if (typeof obj.transaction === "string") return obj.transaction;
+  }
+
+  return null;
+}
+
+export async function getCreemCustomer(
+  customerId: string
+): Promise<Record<string, any> | null> {
+  const customer = await creemRequest<Record<string, any> | null>(
+    `/customers?customer_id=${encodeURIComponent(customerId)}`
+  );
+  if (!customer) return null;
+  if (customer.data && !Array.isArray(customer.data)) return customer.data;
+  return customer;
+}
+
 export async function updateCreemCustomerMetadata(
   customerId: string,
   metadata: Record<string, unknown>
 ): Promise<unknown> {
-  const queryPath = `/customers?customer_id=${encodeURIComponent(customerId)}`;
+  const customer = await getCreemCustomer(customerId);
+  const existingMetadata =
+    customer && typeof customer.metadata === "object" && customer.metadata !== null
+      ? customer.metadata
+      : {};
+  const completeMetadata = {
+    ...existingMetadata,
+    ...metadata,
+    synced_at: new Date().toISOString(),
+  };
 
-  try {
-    return await creemRequest(queryPath, {
-      method: "PATCH",
-      body: JSON.stringify({ metadata }),
-    });
-  } catch (queryError) {
-    // Fallback for API versions that accept customer_id in the body instead.
-    return await creemRequest(`/customers`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        customer_id: customerId,
-        metadata,
-      }),
-    });
-  }
+  return await creemRequest("/customers", {
+    method: "PATCH",
+    body: JSON.stringify({
+      customer_id: customerId,
+      metadata: completeMetadata,
+    }),
+  });
 }
 
 export async function findCreemCustomerIdByEmail(email: string): Promise<string | null> {
@@ -143,6 +177,21 @@ export async function findCreemCustomerIdByEmail(email: string): Promise<string 
   );
 
   if (!data) return null;
+  const candidates: unknown[] = [data];
+  if (data.data) candidates.push(data.data);
+  if (data.items) candidates.push(data.items);
+
+  for (const candidate of candidates) {
+    if (typeof candidate === "string") return candidate;
+    if (Array.isArray(candidate)) {
+      const customerId = getCreemCustomerId(candidate[0]);
+      if (customerId) return customerId;
+      continue;
+    }
+    const customerId = getCreemCustomerId(candidate);
+    if (customerId) return customerId;
+  }
+
   const customer = Array.isArray(data) ? data[0] : data;
   if (!customer) return null;
   if (typeof customer.id === "string") return customer.id;

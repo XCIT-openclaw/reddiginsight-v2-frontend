@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import {
+  getCreemCustomerId,
+  getCreemTransactionId,
+  updateCreemCustomerMetadata,
   updateCreemCustomerMetadataByEmail,
 } from "@/lib/creem";
 
@@ -38,6 +41,57 @@ function getEventPlanId(eventObject: Record<string, any>): string | null {
   );
 }
 
+
+async function syncCustomerMetadata(
+  supabase: any,
+  eventObject: Record<string, any>,
+  userId: string,
+  planId: string,
+  credits: number
+): Promise<void> {
+  try {
+    const eventCustomerId = getCreemCustomerId(eventObject);
+    const metadata = {
+      plan_id: planId,
+      credits,
+      user_id: userId,
+    };
+
+    if (eventCustomerId) {
+      await updateCreemCustomerMetadata(eventCustomerId, metadata);
+      return;
+    }
+
+    const { data: user } = await supabase
+      .from("users")
+      .select("email")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (user?.email) {
+      const metadataSynced = await updateCreemCustomerMetadataByEmail(user.email, metadata);
+      if (!metadataSynced) {
+        console.error("[Creem Webhook] Customer metadata sync skipped: customer not found", {
+          userId,
+          email: user.email,
+          planId,
+        });
+      }
+      return;
+    }
+
+    console.error("[Creem Webhook] Customer metadata sync skipped: user email missing", {
+      userId,
+      planId,
+    });
+  } catch (metadataError) {
+    console.error("[Creem Webhook] Customer metadata sync failed:", {
+      userId,
+      planId,
+      metadataError,
+    });
+  }
+}
 
 function verifySignature(payload: string, signature: string | null, secret: string): boolean {
   if (!signature || !secret) {
@@ -189,6 +243,7 @@ export async function POST(request: NextRequest) {
             current_period_end: eventObject.current_period_end_date || new Date().toISOString(),
             updated_at: new Date().toISOString(),
           }, { onConflict: "user_id" });
+          await syncCustomerMetadata(supabase, eventObject, subUserId, planId, PLAN_CREDITS[planId] || 0);
         }
         break;
       }
@@ -286,50 +341,21 @@ export async function POST(request: NextRequest) {
         const nextPendingPlan = shouldClearPlanChange ? null : (existingSub?.pending_plan ?? null);
         const nextPlanChangeRequestedAt = shouldClearPlanChange ? null : (existingSub?.plan_change_requested_at ?? null);
 
-        await supabase.from("users").update({
-          plan: planId,
-          credits: subCredits,
-          updated_at: now,
-        }).eq("id", subUserId);
-
-        if (eventObject.metadata?.plan_id !== planId) {
-          const { data: subUser } = await supabase
-            .from("users")
-            .select("email")
-            .eq("id", subUserId)
-            .maybeSingle();
-
-          if (subUser?.email) {
-            try {
-              const metadataSynced = await updateCreemCustomerMetadataByEmail(subUser.email, {
-                plan_id: planId,
-                credits: subCredits,
-                user_id: subUserId,
-              });
-
-              if (!metadataSynced) {
-                console.error("[Creem Webhook] Customer metadata sync skipped during paid: customer not found by email", {
-                  subId,
-                  planId,
-                  userId: subUserId,
-                });
-              }
-            } catch (metadataError) {
-              console.error("[Creem Webhook] Customer metadata sync failed during paid:", {
-                email: subUser.email,
-                metadataError,
-                userId: subUserId,
-                planId,
-              });
-            }
-          } else {
-            console.error("[Creem Webhook] Customer metadata sync skipped during paid: user email missing", {
-              subId,
-              planId,
-              userId: subUserId,
-            });
-          }
+        const prorationCredits = isProrationAmount && planId === "pro" ? 20 : subCredits;
+        if (isProrationAmount) {
+          await supabase.from("users").update({
+            plan: planId,
+            updated_at: now,
+          }).eq("id", subUserId);
+        } else {
+          await supabase.from("users").update({
+            plan: planId,
+            credits: subCredits,
+            updated_at: now,
+          }).eq("id", subUserId);
         }
+
+        await syncCustomerMetadata(supabase, eventObject, subUserId, planId, subCredits);
 
         await supabase.from("subscriptions").upsert({
           user_id: subUserId,
@@ -347,14 +373,14 @@ export async function POST(request: NextRequest) {
         await supabase.from("transactions").insert({
           user_id: subUserId,
           amount: eventObject.amount ? eventObject.amount / 100 : 0,
-          credits: subCredits,
+          credits: prorationCredits,
           payment_method: "creem",
           payment_id: paymentId,
           status: "completed",
           completed_at: now,
         });
 
-        console.log("[Creem Webhook] subscription.paid credited:", { subUserId, planId, subCredits, paymentId, isNewBillingPeriod, shouldClearPlanChange });
+        console.log("[Creem Webhook] subscription.paid credited:", { subUserId, planId, transactionCredits: prorationCredits, paymentId, isProrationAmount, isNewBillingPeriod, shouldClearPlanChange });
         break;
       }
 
@@ -452,51 +478,41 @@ export async function POST(request: NextRequest) {
           await supabase.from("subscriptions").update(updatePayload).eq("creem_subscription_id", subId);
         }
 
-        if (isUpgrade && existingSub?.user_id && targetPlanId && targetCredits !== null) {
+        if (
+          isUpgrade &&
+          existingSub?.user_id &&
+          targetPlanId &&
+          targetCredits !== null &&
+          !existingSub.plan_change_requested_at
+        ) {
+          const { data: upgradeUser } = await supabase
+            .from("users")
+            .select("credits")
+            .eq("id", existingSub.user_id)
+            .maybeSingle();
+          const currentCredits = Math.max(0, Number(upgradeUser?.credits) || 0);
+          const currentPlanCredits = PLAN_CREDITS[currentPlan || ""] || 0;
+          const upgradedCredits = Math.min(
+            targetCredits,
+            currentCredits + Math.max(0, targetCredits - currentPlanCredits)
+          );
           await supabase.from("users").update({
             plan: targetPlanId,
-            credits: targetCredits,
+            credits: upgradedCredits,
             updated_at: now,
           }).eq("id", existingSub.user_id);
         }
 
-        if (existingSub?.user_id && targetPlanId && eventObject.metadata?.plan_id !== targetPlanId) {
-          const { data: subUser } = await supabase
-            .from("users")
-            .select("email")
-            .eq("id", existingSub.user_id)
-            .maybeSingle();
-
-          if (subUser?.email) {
-            try {
-              const metadataSynced = await updateCreemCustomerMetadataByEmail(subUser.email, {
-                plan_id: targetPlanId,
-                credits: targetCredits ?? PLAN_CREDITS[targetPlanId] ?? 0,
-                user_id: existingSub.user_id,
-              });
-
-              if (!metadataSynced) {
-                console.error("[Creem Webhook] Customer metadata sync skipped: customer not found by email", {
-                  subId,
-                  targetPlanId,
-                  userId: existingSub.user_id,
-                });
-              }
-            } catch (metadataError) {
-              console.error("[Creem Webhook] Customer metadata sync failed:", {
-                email: subUser.email,
-                metadataError,
-                userId: existingSub.user_id,
-                targetPlanId,
-              });
-            }
-          } else {
-            console.error("[Creem Webhook] Customer metadata sync skipped: user email missing", {
-              subId,
-              targetPlanId,
-              userId: existingSub.user_id,
-            });
-          }
+        if (existingSub?.user_id && targetPlanId) {
+          await syncCustomerMetadata(
+            supabase,
+            eventObject,
+            existingSub.user_id,
+            isDowngrade ? currentPlan : targetPlanId,
+            isDowngrade
+              ? PLAN_CREDITS[currentPlan] ?? 0
+              : targetCredits ?? PLAN_CREDITS[targetPlanId] ?? 0
+          );
         }
 
         break;
@@ -509,6 +525,10 @@ export async function POST(request: NextRequest) {
           const now = new Date().toISOString();
           await supabase.from("subscriptions").update({
             status: "canceled",
+            plan_id: "free",
+            credits_per_month: null,
+            pending_plan: null,
+            plan_change_requested_at: null,
             updated_at: now,
           }).eq("creem_subscription_id", subId);
 
@@ -525,6 +545,7 @@ export async function POST(request: NextRequest) {
               updated_at: now,
             }).eq("id", canceledSub.user_id);
             console.log("[Creem Webhook] Reset user to Free after canceled subscription:", canceledSub.user_id);
+            await syncCustomerMetadata(supabase, eventObject, canceledSub.user_id, "free", 0);
           }
         }
         break;
@@ -532,8 +553,7 @@ export async function POST(request: NextRequest) {
 
       case "subscription.paused":
       case "subscription.scheduled_cancel":
-      case "subscription.past_due":
-      case "subscription.unpaid": {
+      case "subscription.past_due": {
         const subId = eventObject.id;
         console.log("[Creem Webhook] Subscription lifecycle:", eventType, subId);
         if (subId) {
@@ -541,7 +561,6 @@ export async function POST(request: NextRequest) {
             "subscription.paused": "paused",
             "subscription.past_due": "past_due",
             "subscription.scheduled_cancel": "scheduled_cancel",
-            "subscription.unpaid": "unpaid",
           };
           const newStatus = statusMap[eventType] || eventObject.status || "active";
           await supabase.from("subscriptions").update({
@@ -552,12 +571,48 @@ export async function POST(request: NextRequest) {
         break;
       }
 
+      case "subscription.unpaid": {
+        const subId = eventObject.id;
+        const now = new Date().toISOString();
+        console.log("[Creem Webhook] subscription.unpaid (terminal):", subId);
+        if (subId) {
+          await supabase.from("subscriptions").update({
+            status: "unpaid",
+            plan_id: "free",
+            credits_per_month: null,
+            pending_plan: null,
+            plan_change_requested_at: null,
+            updated_at: now,
+          }).eq("creem_subscription_id", subId);
+
+          const { data: unpaidSub } = await supabase
+            .from("subscriptions")
+            .select("user_id")
+            .eq("creem_subscription_id", subId)
+            .maybeSingle();
+
+          if (unpaidSub?.user_id) {
+            await supabase.from("users").update({
+              credits: 0,
+              plan: "free",
+              updated_at: now,
+            }).eq("id", unpaidSub.user_id);
+            await syncCustomerMetadata(supabase, eventObject, unpaidSub.user_id, "free", 0);
+          }
+        }
+        break;
+      }
+
       case "subscription.expired": {
         const subId = eventObject.id;
         console.log("[Creem Webhook] subscription.expired:", subId);
         if (subId) {
           await supabase.from("subscriptions").update({
             status: "expired",
+            plan_id: "free",
+            credits_per_month: null,
+            pending_plan: null,
+            plan_change_requested_at: null,
             updated_at: new Date().toISOString(),
           }).eq("creem_subscription_id", subId);
           // Reset credits to 0 on expiry
@@ -573,6 +628,7 @@ export async function POST(request: NextRequest) {
               updated_at: new Date().toISOString(),
             }).eq("id", expiredSub.user_id);
             console.log("[Creem Webhook] Credits reset to 0 for expired subscription, user:", expiredSub.user_id);
+            await syncCustomerMetadata(supabase, eventObject, expiredSub.user_id, "free", 0);
           }
         }
         break;
@@ -580,8 +636,21 @@ export async function POST(request: NextRequest) {
 
       case "refund.created": {
         const refundId = eventObject.id;
-        const paymentId = eventObject.payment_id || eventObject.subscription_id;
-        console.log("[Creem Webhook] Refund created:", refundId, "for payment:", paymentId);
+        const paymentId =
+          getCreemTransactionId(eventObject) ||
+          eventObject.subscription_id ||
+          null;
+        console.log("[Creem Webhook] Refund created:", {
+          refundId,
+          paymentId,
+          refundObjectKeys: Object.keys(eventObject).join(","),
+          refundPreview: JSON.stringify(eventObject).slice(0, 500),
+        });
+
+        if (!paymentId) {
+          console.error("[Creem Webhook] Refund webhook received but no transaction reference found");
+          break;
+        }
 
         const { data: tx } = await supabase.from("transactions")
           .select("user_id, credits")
@@ -598,7 +667,7 @@ export async function POST(request: NextRequest) {
           if (!existingRefund) {
             await supabase.from("transactions").insert({
               user_id: tx.user_id,
-              amount: -(eventObject.amount ? eventObject.amount / 100 : 0),
+              amount: -((eventObject.refund_amount ?? eventObject.transaction?.refund_amount ?? eventObject.transaction?.amount ?? eventObject.amount ?? 0) / 100),
               credits: -tx.credits,
               payment_method: "creem",
               payment_id: refundId,

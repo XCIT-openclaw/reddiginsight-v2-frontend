@@ -295,28 +295,12 @@ export async function POST(request: NextRequest) {
         const storedPeriodEnd = existingSub?.current_period_end || null;
         const billingAnchor = nextTransactionDate || null;
 
-        const fullPlanPriceCents: Record<string, number> = {
-          starter: 990,
-          pro: 2990,
-        };
-        const eventAmountCents =
-          typeof eventObject.amount === "number"
-            ? eventObject.amount
-            : eventObject.amount
-              ? Number(eventObject.amount)
-              : null;
-        const isProrationAmount =
-          eventAmountCents !== null &&
-          eventAmountCents > 0 &&
-          eventAmountCents < (fullPlanPriceCents[planId] || Number.POSITIVE_INFINITY);
-
-        // Only clear the one-plan-change lock when the next billing anchor moves forward,
-        // and the paid amount is not a proration amount.
+        // Paid events represent the start of a billing cycle. Plan changes use
+        // proration-none, so every paid plan receives its full monthly credit allowance.
         const isNewBillingPeriod =
           Boolean(billingAnchor) &&
           Boolean(storedPeriodEnd) &&
-          new Date(billingAnchor).getTime() > new Date(storedPeriodEnd).getTime() &&
-          !isProrationAmount;
+          new Date(billingAnchor).getTime() > new Date(storedPeriodEnd).getTime();
 
         console.log("[Creem Webhook] subscription.paid period check:", {
           subId,
@@ -324,8 +308,6 @@ export async function POST(request: NextRequest) {
           eventPeriodEnd,
           nextTransactionDate,
           storedPeriodEnd,
-          eventAmountCents,
-          isProrationAmount,
           isNewBillingPeriod,
         });
 
@@ -341,19 +323,11 @@ export async function POST(request: NextRequest) {
         const nextPendingPlan = shouldClearPlanChange ? null : (existingSub?.pending_plan ?? null);
         const nextPlanChangeRequestedAt = shouldClearPlanChange ? null : (existingSub?.plan_change_requested_at ?? null);
 
-        const prorationCredits = isProrationAmount && planId === "pro" ? 20 : subCredits;
-        if (isProrationAmount) {
-          await supabase.from("users").update({
-            plan: planId,
-            updated_at: now,
-          }).eq("id", subUserId);
-        } else {
-          await supabase.from("users").update({
-            plan: planId,
-            credits: subCredits,
-            updated_at: now,
-          }).eq("id", subUserId);
-        }
+        await supabase.from("users").update({
+          plan: planId,
+          credits: subCredits,
+          updated_at: now,
+        }).eq("id", subUserId);
 
         await syncCustomerMetadata(supabase, eventObject, subUserId, planId, subCredits);
 
@@ -373,14 +347,14 @@ export async function POST(request: NextRequest) {
         await supabase.from("transactions").insert({
           user_id: subUserId,
           amount: eventObject.amount ? eventObject.amount / 100 : 0,
-          credits: prorationCredits,
+          credits: subCredits,
           payment_method: "creem",
           payment_id: paymentId,
           status: "completed",
           completed_at: now,
         });
 
-        console.log("[Creem Webhook] subscription.paid credited:", { subUserId, planId, transactionCredits: prorationCredits, paymentId, isProrationAmount, isNewBillingPeriod, shouldClearPlanChange });
+        console.log("[Creem Webhook] subscription.paid credited:", { subUserId, planId, transactionCredits: subCredits, paymentId, isNewBillingPeriod, shouldClearPlanChange });
         break;
       }
 
@@ -458,12 +432,7 @@ export async function POST(request: NextRequest) {
           updatePayload.current_period_end = eventObject.current_period_end_date;
         }
 
-        if (isUpgrade) {
-          updatePayload.plan_id = targetPlanId;
-          updatePayload.credits_per_month = targetCredits ?? 0;
-          updatePayload.pending_plan = null;
-          updatePayload.plan_change_requested_at = existingSub?.plan_change_requested_at || now;
-        } else if (isDowngrade) {
+        if (isUpgrade || isDowngrade) {
           updatePayload.pending_plan = targetPlanId;
           updatePayload.plan_change_requested_at = existingSub?.plan_change_requested_at || now;
         } else if (targetPlanId && targetPlanId !== currentPlan) {
@@ -478,38 +447,13 @@ export async function POST(request: NextRequest) {
           await supabase.from("subscriptions").update(updatePayload).eq("creem_subscription_id", subId);
         }
 
-        if (
-          isUpgrade &&
-          existingSub?.user_id &&
-          targetPlanId &&
-          targetCredits !== null &&
-          !existingSub.plan_change_requested_at
-        ) {
-          const { data: upgradeUser } = await supabase
-            .from("users")
-            .select("credits")
-            .eq("id", existingSub.user_id)
-            .maybeSingle();
-          const currentCredits = Math.max(0, Number(upgradeUser?.credits) || 0);
-          const currentPlanCredits = PLAN_CREDITS[currentPlan || ""] || 0;
-          const upgradedCredits = Math.min(
-            targetCredits,
-            currentCredits + Math.max(0, targetCredits - currentPlanCredits)
-          );
-          await supabase.from("users").update({
-            plan: targetPlanId,
-            credits: upgradedCredits,
-            updated_at: now,
-          }).eq("id", existingSub.user_id);
-        }
-
         if (existingSub?.user_id && targetPlanId) {
           await syncCustomerMetadata(
             supabase,
             eventObject,
             existingSub.user_id,
-            isDowngrade ? currentPlan : targetPlanId,
-            isDowngrade
+            isUpgrade || isDowngrade ? currentPlan : targetPlanId,
+            isUpgrade || isDowngrade
               ? PLAN_CREDITS[currentPlan] ?? 0
               : targetCredits ?? PLAN_CREDITS[targetPlanId] ?? 0
           );

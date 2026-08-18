@@ -228,7 +228,7 @@ export async function upgradeCreemSubscription(
     method: "POST",
     body: JSON.stringify({
       product_id: payload.productId,
-      update_behavior: payload.updateBehavior || "proration-charge-immediately",
+      update_behavior: payload.updateBehavior || "proration-none",
     }),
   });
 }

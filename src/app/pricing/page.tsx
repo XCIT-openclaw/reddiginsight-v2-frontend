@@ -193,7 +193,7 @@ export default function PricingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           product_id: plan.productId,
-          update_behavior: isUpgrade ? 'proration-charge-immediately' : 'proration-none',
+          update_behavior: 'proration-none',
         }),
       })
 
@@ -203,10 +203,8 @@ export default function PricingPage() {
       }
 
       if (isUpgrade) {
-        toast.success('Upgrade requested', {
-          description: typeof data.credits === 'number'
-            ? 'Your Pro plan is active. Your new balance is ' + data.credits + ' credits. Only the prorated difference is charged for the rest of this billing cycle.'
-            : 'Your Pro plan is active. Your remaining Starter credits carry over, plus up to 20 additional credits (maximum 30).',
+        toast.success('Upgrade scheduled', {
+          description: 'Your Starter plan and current credits remain active for this billing cycle. Pro starts next cycle at $29.90/month with 30 credits.',
           duration: 7000,
         })
       } else {
@@ -223,9 +221,8 @@ export default function PricingPage() {
           credits_per_month: null,
           current_period_end: null,
         }),
-        pending_plan: isDowngrade ? plan.id : null,
+        pending_plan: plan.id,
         plan_change_requested_at: new Date().toISOString(),
-        ...(isUpgrade ? { plan_id: plan.id } : {}),
       }))
 
       setPendingUpgrade(null)
@@ -270,7 +267,7 @@ export default function PricingPage() {
 
           {user && !isCancellationScheduled && (currentPlan === 'starter' || currentPlan === 'pro') && (
             <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border bg-muted/30 text-sm text-muted-foreground text-center">
-              Plan changes: upgrades take effect immediately. Your remaining credits carry over and you receive the plan difference, up to the new plan&apos;s monthly maximum. Downgrades take effect at your next billing cycle; your current credits remain available until then.
+              Plan changes take effect at the start of your next billing cycle. Your current plan and credits remain available until the end of this cycle. The new plan&apos;s price and monthly credits begin next cycle.
             </div>
           )}
 
@@ -293,7 +290,7 @@ export default function PricingPage() {
               {pendingPlan === 'starter'
                 ? 'Your downgrade to Starter is scheduled for the next billing cycle. You can change plans again at the start of that cycle.'
                 : pendingPlan === 'pro'
-                  ? 'Your upgrade to Pro is being activated. You can change plans again at the start of the next billing cycle.'
+                  ? 'Your upgrade to Pro is scheduled for the next billing cycle. Your current Starter plan and credits remain active until then.'
                   : 'You have already changed your plan this billing cycle. You can change plans again at the start of the next billing cycle.'}
             </div>
           )}
@@ -333,7 +330,7 @@ export default function PricingPage() {
                   )}
                   {user && plan.id === 'pro' && currentPlan === 'starter' && (
                     <div className="mt-2 text-xs text-muted-foreground">
-                      Upgrade now to keep your remaining credits and receive the 20-credit plan difference, for a maximum balance of 30. You will only pay the prorated difference for the rest of this billing cycle.
+                      Schedule an upgrade to keep Starter and your current credits for the rest of this cycle. Pro starts next cycle at $29.90/month with 30 credits.
                     </div>
                   )}
                   {user && plan.id === 'starter' && currentPlan === 'pro' && (
@@ -375,9 +372,9 @@ export default function PricingPage() {
                       user && plan.id === currentPlan ? (
                         'Current Plan'
                       ) : user && plan.id === 'pro' && currentPlan === 'starter' ? (
-                        'Upgrade to Pro'
+                        'Schedule Upgrade'
                       ) : user && plan.id === 'starter' && currentPlan === 'pro' ? (
-                        'Downgrade to Starter'
+                        'Schedule Downgrade'
                       ) : (
                         <>
                           <CreditCard className="h-4 w-4 mr-2" />
@@ -444,7 +441,7 @@ export default function PricingPage() {
           <DialogHeader>
             <DialogTitle>Confirm your upgrade to Pro</DialogTitle>
             <DialogDescription>
-              Your plan will change immediately. Your remaining Starter credits carry over, and you receive the 20-credit plan difference, for a maximum balance of 30. Creem will charge the remaining-cycle difference now.
+              Your Starter plan and current credits remain active for the rest of this billing cycle. Pro starts at the beginning of your next cycle.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 rounded-lg border bg-muted/40 p-4 text-sm">
@@ -454,14 +451,14 @@ export default function PricingPage() {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">New plan</span>
-              <span className="font-medium">Pro {String.fromCharCode(183)} 30 credits per month</span>
+              <span className="font-medium">Pro next cycle {String.fromCharCode(183)} 30 credits/month</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Remaining in cycle</span>
               <span className="font-medium">{upgradeDaysRemaining === null ? 'Current cycle' : upgradeDaysRemaining + (upgradeDaysRemaining === 1 ? ' day' : ' days')}</span>
             </div>
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
-              The exact prorated difference is calculated and charged by Creem when you confirm. Your next regular Pro charge is $29.90 and includes 30 credits for that month.
+              No upgrade charge is made today. Your first Pro charge is $29.90 at the start of your next billing cycle and includes 30 credits for that month.
             </div>
           </div>
           <DialogFooter>
@@ -469,7 +466,7 @@ export default function PricingPage() {
               Cancel
             </Button>
             <Button onClick={() => pendingUpgrade && executePlanChange(pendingUpgrade)} disabled={loadingPlan !== null}>
-              {loadingPlan ? 'Processing...' : 'Confirm upgrade'}
+              {loadingPlan ? 'Processing...' : 'Schedule upgrade'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -71,15 +71,16 @@ order by created_at desc;
 
 | ID | 场景 | 步骤 | 预期结果 |
 | --- | --- | --- | --- |
-| TC-UP-01 | 升级立即生效并稳定到账 | 使用 Starter 账号进入 `/pricing`，点击 `Upgrade to Pro` | API 返回 200 后立即查库：`users.plan=pro`、`users.credits=30`；`subscriptions.plan_id=pro`、`credits_per_month=30`、`pending_plan=null`、`plan_change_requested_at` 非空；等待 `subscription.update` 和 `subscription.paid` 到达后再查一次，仍应为 `pro/30`，不能回退或累加到 60 |
-| TC-UP-02 | 升级按钮状态正确 | 观察 Pricing 卡片 | Starter 显示 `Current Plan` 且禁用；Pro 显示 `Upgrade to Pro`；请求期间显示处理状态且其他按钮禁用 |
-| TC-UP-03 | 升级后卡片状态切换 | 等待升级完成 | Pro 显示 `Current Plan`；Starter 显示 `Downgrade to Starter`；Pricing 页出现本周期已变更套餐提示 |
-| TC-UP-04 | 升级失败不占用变更次数 | 直接调用 `/api/subscriptions/upgrade`，请求体缺少 `product_id` | 返回 400；`subscriptions.plan_change_requested_at` 仍为 null；随后补齐 `product_id` 重新升级可以成功 |
-| TC-UP-05 | Upgrade proration does not grant full credits | After upgrade, wait for subscription.update and subscription.paid | Only one proration transaction is recorded with 20 credits. users.credits keeps the calculated balance (for example 25 when 5 credits remained); it must not reset to 30 or increase to 45 |
-| TC-UP-06 | 升级后变更锁保留 | 升级成功并收到 webhook 后，直接再次调用升级或降级 API | 返回 409；`subscriptions.plan_change_requested_at` 仍非空，不能被 `subscription.update` 或 `subscription.paid` 清空 |
-| TC-UP-07 | 升级后同步 Creem customer metadata | 升级完成后用 Creem API 查询该邮箱对应 customer | customer metadata 的 `plan_id=pro`、`credits=30`、`user_id` 保持原值 |
-| TC-UP-08 | Confirm proration before upgrade | As a Starter user, click `Upgrade to Pro` | A confirmation dialog appears first and shows remaining days, the credit-balance rule, and states that Creem calculates the exact prorated difference. Cancel does not call the API; Confirm calls it. |
-| TC-UP-09 | Upgrade preserves remaining balance | Test a Starter account upgrade with 10, 5, and 0 credits remaining before upgrade | 10 remaining becomes 30; 5 remaining becomes 25; 0 remaining becomes 20. In all cases subscriptions.credits_per_month=30 and later webhooks do not add more credits |
+| TC-UP-01 | Upgrade starts next billing cycle | Use a Starter account on /pricing and click Schedule Upgrade | API returns 200; no charge or transaction is created today; users.plan=starter and users.credits stay unchanged; subscriptions.plan_id=starter, credits_per_month=10, pending_plan=pro, plan_change_requested_at is set |
+| TC-UP-02 | Upgrade button state | View pricing cards as a Starter subscriber | Starter shows Current Plan and is disabled; Pro shows Schedule Upgrade; controls show processing state during the request |
+| TC-UP-03 | Current plan remains Starter | Refresh /pricing after scheduling the upgrade | Starter remains Current Plan; plan-change controls are disabled; the pending-plan banner says Pro starts next billing cycle |
+| TC-UP-04 | Failed upgrade does not consume the change slot | Call /api/subscriptions/upgrade without product_id | Returns 400; plan_change_requested_at remains null; a valid retry can succeed |
+| TC-UP-05 | No proration transaction or immediate credit grant | Wait for subscription.update after scheduling the upgrade | No new transaction is created; users.credits and subscriptions.plan_id remain unchanged |
+| TC-UP-06 | Upgrade lock remains active | After scheduling, call upgrade or downgrade again | Returns 409; pending_plan and plan_change_requested_at remain set until the next billing cycle |
+| TC-UP-07 | Customer metadata stays on the active plan | Query the Creem customer after scheduling the upgrade | metadata.plan_id=starter and metadata.credits=10 while Starter remains active; they become pro/30 only after next-cycle subscription.paid |
+| TC-UP-08 | Confirm next-cycle upgrade before scheduling | As a Starter user, click Schedule Upgrade | The dialog states that Starter and current credits remain active, Pro starts next cycle, and no upgrade charge is made today; Cancel does not call the API |
+| TC-UP-09 | Remaining balance stays unchanged | Schedule an upgrade with 10, 5, and 0 credits remaining | Each account keeps its exact current balance immediately after scheduling; at the next paid cycle, Pro grants 30 credits |
+| TC-UP-10 | Scheduled upgrade activates next cycle | Wait for the next billing cycle and the corresponding subscription.paid event | users.plan=pro; users.credits=30; subscriptions.plan_id=pro; credits_per_month=30; pending_plan=null; plan_change_requested_at=null; one Pro transaction with 30 credits is created |
 
 ---
 
@@ -87,7 +88,7 @@ order by created_at desc;
 
 | ID | 场景 | 步骤 | 预期结果 |
 | --- | --- | --- | --- |
-| TC-DN-01 | 降级仅记录待生效计划 | 使用 Pro 账号进入 `/pricing`，点击 `Downgrade to Starter` | 提示降级已排期；`users.plan` 仍为 pro；`users.credits` 仍为 30；`subscriptions.plan_id` 仍为 pro；`subscriptions.pending_plan=starter`；`plan_change_requested_at` 非空 |
+| TC-DN-01 | 降级仅记录待生效计划 | 使用 Pro 账号进入 `/pricing`，点击 `Schedule Downgrade` | 提示降级已排期；`users.plan` 仍为 pro；`users.credits` 仍为 30；`subscriptions.plan_id` 仍为 pro；`subscriptions.pending_plan=starter`；`plan_change_requested_at` 非空 |
 | TC-DN-02 | 降级提示正确 | 查看 Pricing 和 Settings | Pricing 出现琥珀色提示，说明 Starter 将在下个周期生效；Settings 显示 `Your next plan is Starter` |
 | TC-DN-03 | 降级后按钮禁用 | 再次进入 Pricing | 升降级按钮均不可点击；页面显示本周期已变更套餐的英文提示 |
 | TC-DN-04 | 下周期生效 | 等待 Creem 进入下一计费周期并完成 `subscription.paid` | `users.plan=starter`；`users.credits=10`；`subscriptions.plan_id=starter`；`credits_per_month=10`；`pending_plan=null`；`plan_change_requested_at=null` |
@@ -132,7 +133,7 @@ order by created_at desc;
 | TC-CH-01 | 免费账号首次购买 Starter | 使用 `T-A` 在 `/pricing` 点击 `Get 10 Credits`，完成 Creem 测试付款 | `users.plan=starter`；`users.credits=10`；`subscriptions` 创建 Starter 记录；`transactions` 只新增一条 10 Credits 记录，不重复发两次 |
 | TC-CH-02 | 已有订阅用户不能创建新 Checkout | 使用 `T-B` 直接调用 `/api/checkout` 创建 Pro checkout | 返回 409；不跳转 Creem；不创建新 checkout |
 | TC-CH-03 | 付款跳转回来不重复加 Credits | 付款后等待 Dashboard 跳转，并多次刷新页面 | Credits 不重复增加；`verify-checkout` 对订阅产品返回 pending 或已处理；最终以 `subscription.paid` 为准 |
-| TC-CH-04 | 首次购买不占用变更次数 | 免费账号首次购买 Starter 后，立即尝试升级 Pro | 首次购买后 `plan_change_requested_at` 为 null；升级应返回 200，而不是 409 |
+| TC-CH-04 | Initial purchase does not consume the change slot | After a free account purchases Starter, immediately request an upgrade | plan_change_requested_at remains null after the purchase; the upgrade request succeeds and schedules Pro for the next cycle rather than returning 409 |
 
 ---
 
@@ -140,7 +141,7 @@ order by created_at desc;
 
 | ID | 场景 | 预期结果 |
 | --- | --- | --- |
-| TC-WH-01 | `subscription.update` 升级 | `subscriptions.plan_id=pro`；`users.credits=remaining balance + 20, capped at 30`；不新增 transaction |
+| TC-WH-01 | `subscription.update` scheduled upgrade | `subscriptions.plan_id=starter`; `credits_per_month=10`; `pending_plan=pro`; `users.plan/credits` remain unchanged; no transaction is created |
 | TC-WH-02 | `subscription.update` 降级 | `subscriptions.plan_id` 仍为当前套餐；只写 `pending_plan`；`users.credits` 不变 |
 | TC-WH-03 | `subscription.paid` 交易去重 | 不同计费周期各生成一条 transaction；重复投递同一支付事件不会重复加 Credits |
 | TC-WH-04 | `subscription.scheduled_cancel` 状态同步 | `subscriptions.status=scheduled_cancel`；不清零 credits |
@@ -150,6 +151,7 @@ order by created_at desc;
 | TC-WH-08 | `subscription.paid` 金额字段 | 若 Creem payload 不含 `amount`，`transactions.amount=0`；`credits` 仍按套餐写入 10 或 30 |
 | TC-WH-09 | `subscription.update` 首次同步 | 初始订阅同步不设置 `plan_change_requested_at`，不占用每周期变更次数 |
 | TC-WH-10 | `refund.created` 退款回归 | 写一条负数 transaction；用户 credits 按原交易 credits 扣回，且不低于 0 |
+| TC-WH-11 | subscription.paid activates a scheduled plan change | After a Starter-to-Pro scheduled change reaches the next cycle, inspect users, subscriptions, transactions, and customer metadata | users.plan=pro and credits=30; subscriptions.plan_id=pro, credits_per_month=30, pending_plan=null, plan_change_requested_at=null; transaction credits=30; customer metadata becomes pro/30 |
 
 ---
 

@@ -5,9 +5,6 @@ import {
   CreemApiError,
   pauseCreemSubscription,
   resumeCreemSubscription,
-  getCreemCustomerId,
-  updateCreemCustomerMetadata,
-  updateCreemCustomerMetadataByEmail,
   updateCreemSubscription,
   upgradeCreemSubscription,
 } from "@/lib/creem";
@@ -22,11 +19,6 @@ const SUPPORTED_ACTIONS = new Set([
   "pause",
   "resume",
 ]);
-
-const PLAN_CREDITS: Record<string, number> = {
-  starter: 10,
-  pro: 30,
-};
 
 const PRODUCT_TO_PLAN: Record<string, string> = {
   "prod_22VvlqddlgnK8O0hHY6kLU": "starter",
@@ -126,6 +118,17 @@ export async function POST(
       );
     }
 
+    const requestedUpdateBehavior = body.update_behavior || body.updateBehavior;
+    if (requestedUpdateBehavior && requestedUpdateBehavior !== "proration-none") {
+      return NextResponse.json(
+        {
+          error: "Unsupported update behavior",
+          details: "Plan changes must take effect at the start of the next billing cycle.",
+        },
+        { status: 400 }
+      );
+    }
+
     if (subscription?.plan_change_requested_at) {
       return NextResponse.json(
         {
@@ -143,11 +146,7 @@ export async function POST(
       updated_at: requestedAt,
     };
 
-    if (isDowngrade) {
-      claimPayload.pending_plan = targetPlan;
-    } else {
-      claimPayload.pending_plan = null;
-    }
+    claimPayload.pending_plan = targetPlan;
 
     const { data: claimedRows, error: claimError } = await supabase
       .from("subscriptions")
@@ -194,7 +193,7 @@ export async function POST(
         }
         result = await upgradeCreemSubscription(subscriptionId, {
           productId,
-          updateBehavior: body.update_behavior || body.updateBehavior,
+          updateBehavior: "proration-none",
         });
       } else {
         const items = Array.isArray(body.items) ? body.items : null;
@@ -207,94 +206,15 @@ export async function POST(
         }
         result = await updateCreemSubscription(subscriptionId, {
           items,
-          updateBehavior: body.update_behavior || body.updateBehavior,
+          updateBehavior: "proration-none",
         });
-      }
-
-      let upgradedCredits: number | null = null;
-
-      if (isUpgrade) {
-        const targetCredits = PLAN_CREDITS[targetPlan] || 0;
-        const currentPlanCredits = PLAN_CREDITS[currentPlan || ""] || 0;
-        const { data: currentUser } = await supabase
-          .from("users")
-          .select("credits")
-          .eq("id", user.id)
-          .maybeSingle();
-        const currentCredits = Math.max(0, Number(currentUser?.credits) || 0);
-        upgradedCredits = Math.min(
-          targetCredits,
-          currentCredits + Math.max(0, targetCredits - currentPlanCredits)
-        );
-        const now = new Date().toISOString();
-
-        const { error: subscriptionSyncError } = await supabase
-          .from("subscriptions")
-          .update({
-            plan_id: targetPlan,
-            credits_per_month: targetCredits,
-            pending_plan: null,
-            updated_at: now,
-          })
-          .eq("user_id", user.id)
-          .eq("creem_subscription_id", subscriptionId);
-
-        const { error: userSyncError } = await supabase
-          .from("users")
-          .update({
-            plan: targetPlan,
-            credits: upgradedCredits,
-            updated_at: now,
-          })
-          .eq("id", user.id);
-
-        if (subscriptionSyncError || userSyncError) {
-          console.error("[Creem Subscription] Local upgrade sync failed:", {
-            subscriptionSyncError,
-            userSyncError,
-            userId: user.id,
-            targetPlan,
-          });
-        }
-
-        try {
-          const responseCustomerId = getCreemCustomerId(result);
-          const metadata = {
-            plan_id: targetPlan,
-            credits: targetCredits,
-            user_id: user.id,
-          };
-          const metadataSynced = responseCustomerId
-            ? await updateCreemCustomerMetadata(responseCustomerId, metadata)
-            : user.email
-              ? await updateCreemCustomerMetadataByEmail(user.email, metadata)
-              : null;
-
-          if (!metadataSynced) {
-            console.error("[Creem Subscription] Customer metadata sync skipped: customer not found", {
-              userId: user.id,
-              email: user.email,
-              responseCustomerId,
-              targetPlan,
-            });
-          }
-        } catch (metadataError) {
-          console.error("[Creem Subscription] Customer metadata sync failed:", {
-            email: user.email,
-            metadataError,
-            userId: user.id,
-            targetPlan,
-          });
-        }
-
       }
 
       return NextResponse.json({
         success: true,
         subscription: result,
-        pendingPlan: isDowngrade ? targetPlan : null,
+        pendingPlan: targetPlan,
         planChangeRequestedAt: requestedAt,
-        ...(isUpgrade ? { credits: upgradedCredits } : {}),
       });
     } catch (error) {
       await rollbackClaim();

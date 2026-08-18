@@ -71,9 +71,11 @@ function SearchParamsHandler({
   setTimeRange: (value: string) => void
   setLimit: (value: number | null) => void
 }) {
+  const router = useRouter()
   const searchParams = useSearchParams()
 
-  // Handle Creem subscription success redirect
+  // Handle Creem subscription success redirect. Cancel verification when the user
+  // leaves Dashboard so a late response cannot show another toast or force navigation.
   useEffect(() => {
     const subscription = searchParams.get("subscription");
     const checkoutId = searchParams.get("checkout_id");
@@ -88,27 +90,37 @@ function SearchParamsHandler({
       product_id: productId,
       subscription_id: subscriptionId,
     };
+    const abortController = new AbortController();
+    let pollTimeout: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
+
+    const clearPollTimeout = () => {
+      if (pollTimeout !== null) {
+        clearTimeout(pollTimeout);
+        pollTimeout = null;
+      }
+    };
 
     const verifyCheckout = () =>
       fetch("/api/creem/verify-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: abortController.signal,
       }).then((res) => res.json());
 
     const clearRedirect = () => {
-      if (window.history.replaceState) {
-        window.history.replaceState({}, "", "/dashboard");
-      }
+      router.replace("/dashboard", { scroll: false });
     };
 
-    const finalize = (data: any) => {
+    const finalize = () => {
+      if (disposed) return;
       clearRedirect();
-      window.location.reload();
     };
 
     verifyCheckout()
       .then((data) => {
+        if (disposed) return;
         console.log("[Dashboard] Verify checkout result:", data);
         console.log("[Dashboard] Verify checkout debug:", data.debug);
 
@@ -126,7 +138,7 @@ function SearchParamsHandler({
               duration: 8000,
             });
           }
-          finalize(data);
+          finalize();
           return;
         }
 
@@ -143,6 +155,7 @@ function SearchParamsHandler({
           attempts += 1;
           verifyCheckout()
             .then((pollData) => {
+              if (disposed) return;
               console.log("[Dashboard] Verify checkout poll:", pollData);
 
               if (!pollData.pending) {
@@ -159,7 +172,7 @@ function SearchParamsHandler({
                     duration: 8000,
                   });
                 }
-                finalize(pollData);
+                finalize();
                 return;
               }
 
@@ -168,25 +181,27 @@ function SearchParamsHandler({
                   description: "Please refresh the page in a moment.",
                   duration: 8000,
                 });
-                finalize(pollData);
+                finalize();
                 return;
               }
 
-              setTimeout(poll, pollIntervalMs);
+              pollTimeout = setTimeout(poll, pollIntervalMs);
             })
             .catch((err) => {
+              if (disposed || (err instanceof DOMException && err.name === "AbortError")) return;
               console.error("[Dashboard] Verify checkout poll error:", err);
               toast.error("Payment verification failed", {
                 description: String(err),
                 duration: 8000,
               });
-              finalize({});
+              finalize();
             });
         };
 
-        setTimeout(poll, pollIntervalMs);
+        pollTimeout = setTimeout(poll, pollIntervalMs);
       })
       .catch((err) => {
+        if (disposed || (err instanceof DOMException && err.name === "AbortError")) return;
         console.error("[Dashboard] Verify checkout error:", err);
         toast.error("Payment verification failed", {
           description: String(err),
@@ -195,7 +210,12 @@ function SearchParamsHandler({
         clearRedirect();
       });
 
-  }, [searchParams]);
+    return () => {
+      disposed = true;
+      clearPollTimeout();
+      abortController.abort();
+    };
+  }, [router, searchParams]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)

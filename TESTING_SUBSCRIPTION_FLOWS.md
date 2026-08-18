@@ -136,6 +136,7 @@ order by created_at desc;
 | TC-CH-02 | 已有订阅用户不能创建新 Checkout | 使用 `T-B` 直接调用 `/api/checkout` 创建 Pro checkout | 返回 409；不跳转 Creem；不创建新 checkout |
 | TC-CH-03 | 付款跳转回来不重复加 Credits | 付款后等待 Dashboard 跳转，并多次刷新页面 | Credits 不重复增加；`verify-checkout` 对订阅产品返回 pending 或已处理；最终以 `subscription.paid` 为准 |
 | TC-CH-04 | Initial purchase does not consume the change slot | After a free account purchases Starter, immediately request an upgrade | plan_change_requested_at remains null after the purchase; the upgrade request succeeds and schedules Pro for the next cycle rather than returning 409 |
+| TC-CH-05 | Checkout verification stops after navigation | Complete payment, then navigate from Dashboard to another page while credit verification is still pending | No delayed success toast appears on the other page, no automatic redirect back to Dashboard, and credits continue to be granted by the webhook |
 
 ---
 

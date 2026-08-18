@@ -230,20 +230,67 @@ export async function POST(request: NextRequest) {
       case "subscription.trialing": {
         const subId = eventObject.id;
         console.log("[Creem Webhook] subscription.active/trialing:", subId);
-        const subUserId = eventObject.metadata?.user_id;
+        let subUserId = eventObject.metadata?.user_id || null;
+        if (!subUserId && subId) {
+          const { data: existingBySubId } = await supabase
+            .from("subscriptions")
+            .select("user_id")
+            .eq("creem_subscription_id", subId)
+            .maybeSingle();
+          subUserId = existingBySubId?.user_id || null;
+        }
+
         if (subUserId && subId) {
+          const { data: existingSub } = await supabase
+            .from("subscriptions")
+            .select("id, plan_id, credits_per_month, pending_plan, plan_change_requested_at")
+            .eq("user_id", subUserId)
+            .maybeSingle();
+
           const productId = typeof eventObject.product === "string" ? eventObject.product : eventObject.product?.id;
-          const planId = PRODUCT_TO_PLAN[productId] || eventObject.metadata?.plan_id || "starter";
-          await supabase.from("subscriptions").upsert({
-            user_id: subUserId,
-            plan_id: planId,
-            creem_subscription_id: subId,
+          const eventPlanId = PRODUCT_TO_PLAN[productId] || eventObject.metadata?.plan_id || "starter";
+          const now = new Date().toISOString();
+
+          if (!existingSub?.id) {
+            await supabase.from("subscriptions").upsert({
+              user_id: subUserId,
+              plan_id: eventPlanId,
+              creem_subscription_id: subId,
+              status: eventObject.status || "active",
+              credits_per_month: PLAN_CREDITS[eventPlanId] || 0,
+              current_period_end: eventObject.current_period_end_date || now,
+              updated_at: now,
+            }, { onConflict: "user_id" });
+            await syncCustomerMetadata(supabase, eventObject, subUserId, eventPlanId, PLAN_CREDITS[eventPlanId] || 0);
+            break;
+          }
+
+          // A next-cycle plan change may already be stored locally. The Creem object can
+          // expose the next product immediately under proration-none, so activation must
+          // not replace the user's current-cycle plan or credits.
+          const hasScheduledPlanChange = Boolean(existingSub.pending_plan);
+          const activePlanId = hasScheduledPlanChange
+            ? existingSub.plan_id || eventPlanId
+            : eventPlanId;
+          const activeCredits = hasScheduledPlanChange
+            ? existingSub.credits_per_month ?? (PLAN_CREDITS[activePlanId] || 0)
+            : PLAN_CREDITS[activePlanId] || 0;
+
+          const activeUpdate: Record<string, unknown> = {
+            plan_id: activePlanId,
+            credits_per_month: activeCredits,
             status: eventObject.status || "active",
-            credits_per_month: PLAN_CREDITS[planId] || 0,
-            current_period_end: eventObject.current_period_end_date || new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }, { onConflict: "user_id" });
-          await syncCustomerMetadata(supabase, eventObject, subUserId, planId, PLAN_CREDITS[planId] || 0);
+            updated_at: now,
+          };
+          if (eventObject.current_period_start_date) {
+            activeUpdate.current_period_start = eventObject.current_period_start_date;
+          }
+          if (eventObject.current_period_end_date) {
+            activeUpdate.current_period_end = eventObject.current_period_end_date;
+          }
+
+          await supabase.from("subscriptions").update(activeUpdate).eq("id", existingSub.id);
+          await syncCustomerMetadata(supabase, eventObject, subUserId, activePlanId, activeCredits);
         }
         break;
       }

@@ -90,6 +90,7 @@ order by created_at desc;
 | --- | --- | --- | --- |
 | TC-DN-01 | 降级仅记录待生效计划 | 使用 Pro 账号进入 `/pricing`，点击 `Schedule Downgrade` | 提示降级已排期；`users.plan` 仍为 pro；`users.credits` 仍为 30；`subscriptions.plan_id` 仍为 pro；`subscriptions.pending_plan=starter`；`plan_change_requested_at` 非空 |
 | TC-DN-02 | 降级提示正确 | 查看 Pricing 和 Settings | Pricing 出现琥珀色提示，说明 Starter 将在下个周期生效；Settings 显示 `Your next plan is Starter` |
+| TC-DN-06 | Confirm next-cycle downgrade before scheduling | As a Pro user, click Schedule Downgrade | A confirmation dialog states that Pro and current credits remain active this cycle, Starter starts next cycle at $9.90/month with 10 credits, and no charge is made today; Cancel does not call the API |
 | TC-DN-03 | 降级后按钮禁用 | 再次进入 Pricing | 升降级按钮均不可点击；页面显示本周期已变更套餐的英文提示 |
 | TC-DN-04 | 下周期生效 | 等待 Creem 进入下一计费周期并完成 `subscription.paid` | `users.plan=starter`；`users.credits=10`；`subscriptions.plan_id=starter`；`credits_per_month=10`；`pending_plan=null`；`plan_change_requested_at=null` |
 | TC-DN-05 | 降级生效前 metadata 不提前变更 | 降级排期后、下一周期前查询 Creem customer metadata | metadata 仍保持当前 `pro/30`；只有下一周期 `subscription.paid` 后才会变为 `starter/10` |
@@ -111,6 +112,7 @@ order by created_at desc;
 | TC-CL-09 | Pricing 页反映排期取消状态 | 在 `scheduled_cancel` 状态进入 `/pricing` | 显示取消提示；非当前套餐按钮被禁用；提示用户到 Settings 恢复订阅后再变更套餐 |
 | TC-CL-10 | 立即取消终态降回 Free | 通过 Creem Dashboard 或 API 立即取消一个订阅，触发 `subscription.canceled` | `subscriptions.status=canceled`；`users.plan=free`；`users.credits=0`；页面不再显示 Subscription 卡片 |
 | TC-CL-11 | `scheduled_cancel` 不清零 | 收到 `subscription.scheduled_cancel` webhook 后检查 | `users.plan/credits` 保持不变；只有 `subscriptions.status=scheduled_cancel` 被更新 |
+| TC-CL-12 | Reactivate preserves a scheduled plan change | Schedule Starter downgrade from Pro, cancel at period end, then reactivate the subscription | Before and after reactivation: users.plan=pro, users.credits=30, subscriptions.plan_id=pro, credits_per_month=30, pending_plan=starter, plan_change_requested_at remains set; only status changes scheduled_cancel to active; customer metadata remains pro/30 |
 
 ---
 
@@ -122,7 +124,7 @@ order by created_at desc;
 | TC-LMT-02 | API 二次变更返回 409 | 直接调用 `/api/subscriptions/upgrade` 或 `/api/subscriptions/update` | 返回 409；提示 `You can only change your subscription plan once per billing cycle.`；数据库状态不变 |
 | TC-LMT-03 | 并发请求只允许一个成功 | 在浏览器 Console 用 `Promise.all` 同时发出两个套餐变更请求 | 一个返回 200，另一个返回 409；数据库中只保留一次有效变更；不会调用两次 Creem |
 | TC-LMT-04 | 新周期解除限制 | 上一周期已变更一次，并收到新的 `subscription.paid` | `plan_change_requested_at` 被清空；Pricing 页恢复可变更状态 |
-| TC-LMT-05 | 取消和恢复不占变更次数 | 套餐变更一次后执行取消，再恢复 | 取消和恢复均被允许；恢复后 `plan_change_requested_at` 仍保留，用户仍不能再次变更套餐 |
+| TC-LMT-05 | Cancel and reactivate do not consume the change slot or alter the plan | After scheduling a plan change, cancel and then reactivate | Both actions are allowed; users.plan/credits and subscriptions.plan_id/credits_per_month remain the current-cycle values; pending_plan and plan_change_requested_at remain intact |
 
 ---
 

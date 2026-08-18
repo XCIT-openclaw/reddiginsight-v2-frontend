@@ -83,7 +83,7 @@ export default function PricingPage() {
   const router = useRouter()
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null)
-  const [pendingUpgrade, setPendingUpgrade] = useState<PricingPlan | null>(null)
+  const [pendingPlanChange, setPendingPlanChange] = useState<PricingPlan | null>(null)
   const currentPlan = profile?.plan || 'free'
   const hasPlanChangeRequested = Boolean(subscriptionStatus?.plan_change_requested_at)
   const pendingPlan = subscriptionStatus?.pending_plan || null
@@ -174,12 +174,7 @@ export default function PricingPage() {
       return
     }
 
-    if (isUpgrade) {
-      setPendingUpgrade(plan)
-      return
-    }
-
-    executePlanChange(plan)
+    setPendingPlanChange(plan)
   }
 
   const executePlanChange = async (plan: PricingPlan) => {
@@ -225,7 +220,7 @@ export default function PricingPage() {
         plan_change_requested_at: new Date().toISOString(),
       }))
 
-      setPendingUpgrade(null)
+      setPendingPlanChange(null)
       setTimeout(() => { refreshProfile() }, 3500)
     } catch (error) {
       toast.error('Plan change failed', {
@@ -436,41 +431,40 @@ export default function PricingPage() {
         </div>
       </div>
 
-      <Dialog open={Boolean(pendingUpgrade)} onOpenChange={(open) => !open && !loadingPlan && setPendingUpgrade(null)}>
+      <Dialog open={Boolean(pendingPlanChange)} onOpenChange={(open) => !open && !loadingPlan && setPendingPlanChange(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm your upgrade to Pro</DialogTitle>
+            <DialogTitle>Confirm your plan change</DialogTitle>
             <DialogDescription>
-              Your Starter plan and current credits remain active for the rest of this billing cycle. Pro starts at the beginning of your next cycle.
+              Your current plan and credits remain active for the rest of this billing cycle. {pendingPlanChange?.id === 'pro' ? 'Pro starts' : 'Starter starts'} at the beginning of your next cycle.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 rounded-lg border bg-muted/40 p-4 text-sm">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Current plan</span>
-              <span className="font-medium">Starter {String.fromCharCode(183)} 10 credits</span>
+              <span className="font-medium">{currentPlan === 'pro' ? 'Pro' : 'Starter'} {String.fromCharCode(183)} {currentPlan === 'pro' ? 30 : 10} credits</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">New plan</span>
-              <span className="font-medium">Pro next cycle {String.fromCharCode(183)} 30 credits/month</span>
+              <span className="font-medium">{pendingPlanChange?.id === 'pro' ? 'Pro next cycle' : 'Starter next cycle'} {String.fromCharCode(183)} {pendingPlanChange?.id === 'pro' ? 30 : 10} credits/month</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Remaining in cycle</span>
               <span className="font-medium">{upgradeDaysRemaining === null ? 'Current cycle' : upgradeDaysRemaining + (upgradeDaysRemaining === 1 ? ' day' : ' days')}</span>
             </div>
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
-              No upgrade charge is made today. Your first Pro charge is $29.90 at the start of your next billing cycle and includes 30 credits for that month.
+              No plan-change charge is made today. Your next regular charge is {pendingPlanChange?.id === 'pro' ? '$29.90 for Pro and includes 30 credits' : '$9.90 for Starter and includes 10 credits'}.
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingUpgrade(null)} disabled={loadingPlan !== null}>
+            <Button variant="outline" onClick={() => setPendingPlanChange(null)} disabled={loadingPlan !== null}>
               Cancel
             </Button>
-            <Button onClick={() => pendingUpgrade && executePlanChange(pendingUpgrade)} disabled={loadingPlan !== null}>
-              {loadingPlan ? 'Processing...' : 'Schedule upgrade'}
+            <Button onClick={() => pendingPlanChange && executePlanChange(pendingPlanChange)} disabled={loadingPlan !== null}>
+              {loadingPlan ? 'Processing...' : 'Confirm plan change'}
             </Button>
           </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </DialogContent>      </Dialog>
     </>
   )
 }

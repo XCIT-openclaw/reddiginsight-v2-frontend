@@ -7,12 +7,12 @@ export const metadata: Metadata = {
   description: "Analyze Reddit subreddits with AI to uncover insights, sentiment, and trending topics",
   keywords: ["Reddit", "AI", "Analysis", "Sentiment", "Social Media"],
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
+    icon: "/favicon.ico?v=20260818",
+    shortcut: "/favicon.ico?v=20260818",
     apple: "/images/apple-touch-icon.png",
     other: [
-      { rel: "icon", url: "/images/icon-192.png", sizes: "192x192" },
-      { rel: "icon", url: "/images/icon-512.png", sizes: "512x512" },
+      { rel: "icon", url: "/images/icon-192.png?v=20260818", sizes: "192x192" },
+      { rel: "icon", url: "/images/icon-512.png?v=20260818", sizes: "512x512" },
     ],
   },
 };

@@ -77,6 +77,18 @@ export async function POST(
     );
   }
 
+  // Terminal subscriptions keep their historical Creem ID, but no lifecycle action
+  // or plan change can be performed on them.
+  if (subscription?.status === "canceled" || subscription?.status === "expired") {
+    return NextResponse.json(
+      {
+        error: "No active subscription found for this user",
+        details: "The existing subscription is already " + subscription.status + ".",
+      },
+      { status: 404 }
+    );
+  }
+
   let body: Record<string, any> = {};
   if (action !== "pause" && action !== "resume") {
     try {

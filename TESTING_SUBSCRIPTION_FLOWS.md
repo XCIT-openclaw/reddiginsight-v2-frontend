@@ -113,6 +113,7 @@ order by created_at desc;
 | TC-CL-10 | 立即取消终态降回 Free | 通过 Creem Dashboard 或 API 立即取消一个订阅，触发 `subscription.canceled` | `subscriptions.status=canceled`；`users.plan=free`；`users.credits=0`；页面不再显示 Subscription 卡片 |
 | TC-CL-11 | `scheduled_cancel` 不清零 | 收到 `subscription.scheduled_cancel` webhook 后检查 | `users.plan/credits` 保持不变；只有 `subscriptions.status=scheduled_cancel` 被更新 |
 | TC-CL-12 | Reactivate preserves a scheduled plan change | Schedule Starter downgrade from Pro, cancel at period end, then reactivate the subscription | Before and after reactivation: users.plan=pro, users.credits=30, subscriptions.plan_id=pro, credits_per_month=30, pending_plan=starter, plan_change_requested_at remains set; only status changes scheduled_cancel to active; customer metadata remains pro/30 |
+| TC-CL-13 | Dashboard reactivation restores Pricing plan state | Schedule cancellation from Pro, reactivate the subscription manually in the Creem dashboard, then open /pricing | users.plan=pro; subscriptions.plan_id=pro, status=active; Pricing shows Pro as Current Plan and disabled, Starter shows Schedule Downgrade unless this cycle already has a plan change lock |
 
 ---
 

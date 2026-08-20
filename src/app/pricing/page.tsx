@@ -84,7 +84,12 @@ export default function PricingPage() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null)
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null)
   const [pendingPlanChange, setPendingPlanChange] = useState<PricingPlan | null>(null)
-  const currentPlan = profile?.plan || 'free'
+  const subscriptionCurrentPlan =
+    subscriptionStatus?.plan_id &&
+    !['canceled', 'expired'].includes(subscriptionStatus.status || '')
+      ? subscriptionStatus.plan_id
+      : null
+  const currentPlan = subscriptionCurrentPlan || profile?.plan || 'free'
   const hasPlanChangeRequested = Boolean(subscriptionStatus?.plan_change_requested_at)
   const pendingPlan = subscriptionStatus?.pending_plan || null
   const isCancellationScheduled = subscriptionStatus?.status === 'scheduled_cancel'

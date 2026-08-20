@@ -290,6 +290,14 @@ export async function POST(request: NextRequest) {
           }
 
           await supabase.from("subscriptions").update(activeUpdate).eq("id", existingSub.id);
+
+          // Keep users.plan aligned when Creem reactivates a subscription from its dashboard.
+          // Do not overwrite credits here: this cycle's remaining balance must be preserved.
+          await supabase.from("users").update({
+            plan: activePlanId,
+            updated_at: now,
+          }).eq("id", subUserId);
+
           await syncCustomerMetadata(supabase, eventObject, subUserId, activePlanId, activeCredits);
         }
         break;

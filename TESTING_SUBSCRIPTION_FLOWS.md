@@ -157,6 +157,7 @@ order by created_at desc;
 | TC-WH-09 | `subscription.update` 首次同步 | 初始订阅同步不设置 `plan_change_requested_at`，不占用每周期变更次数 |
 | TC-WH-10 | `refund.created` 退款回归 | 写一条负数 transaction；用户 credits 按原交易 credits 扣回，且不低于 0 |
 | TC-WH-11 | subscription.paid activates a scheduled plan change | After a Starter-to-Pro scheduled change reaches the next cycle, inspect users, subscriptions, transactions, and customer metadata | users.plan=pro and credits=30; subscriptions.plan_id=pro, credits_per_month=30, pending_plan=null, plan_change_requested_at=null; transaction credits=30; customer metadata becomes pro/30 |
+| TC-WH-12 | Metadata sync retries by email | Send subscription.paid with a stale or synthetic customer ID that returns 404, using a user whose registered email matches a real Creem customer | The handler logs the event-customer failure, retries by email, and customer metadata becomes the active plan and credits |
 
 ---
 

@@ -57,16 +57,27 @@ async function syncCustomerMetadata(
       user_id: userId,
     };
 
-    if (eventCustomerId) {
-      await updateCreemCustomerMetadata(eventCustomerId, metadata);
-      return;
-    }
-
     const { data: user } = await supabase
       .from("users")
       .select("email")
       .eq("id", userId)
       .maybeSingle();
+
+    if (eventCustomerId) {
+      try {
+        await updateCreemCustomerMetadata(eventCustomerId, metadata);
+        return;
+      } catch (eventCustomerError) {
+        // Synthetic or stale webhook payloads can reference a customer that does not
+        // exist in this Creem environment. Fall back to the registered account email.
+        console.warn("[Creem Webhook] Event customer metadata sync failed; retrying by email", {
+          userId,
+          eventCustomerId,
+          planId,
+          eventCustomerError,
+        });
+      }
+    }
 
     if (user?.email) {
       const metadataSynced = await updateCreemCustomerMetadataByEmail(user.email, metadata);

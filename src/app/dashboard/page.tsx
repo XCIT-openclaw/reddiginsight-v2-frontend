@@ -71,7 +71,6 @@ function SearchParamsHandler({
   setTimeRange: (value: string) => void
   setLimit: (value: number | null) => void
 }) {
-  const router = useRouter()
   const searchParams = useSearchParams()
 
   // Handle Creem subscription success redirect. Cancel verification when the user
@@ -110,8 +109,13 @@ function SearchParamsHandler({
       }).then((res) => res.json());
 
     const clearRedirect = () => {
-      router.replace("/dashboard", { scroll: false });
+      if (typeof window === "undefined") return;
+      if (window.location.pathname !== "/dashboard") return;
+      if (!window.location.search.includes("subscription=success")) return;
+      window.history.replaceState(window.history.state, "", "/dashboard");
     };
+
+    clearRedirect();
 
     const finalize = () => {
       if (disposed) return;
@@ -212,10 +216,11 @@ function SearchParamsHandler({
 
     return () => {
       disposed = true;
+      clearRedirect();
       clearPollTimeout();
       abortController.abort();
     };
-  }, [router, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY)

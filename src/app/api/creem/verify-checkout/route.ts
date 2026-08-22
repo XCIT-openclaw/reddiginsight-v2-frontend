@@ -59,6 +59,54 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      const { data: activeSubscription } = await supabase
+        .from("subscriptions")
+        .select("id, status, plan_id, creem_subscription_id, current_period_start")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const subscriptionMatchesRedirect =
+        activeSubscription?.status === "active" &&
+        activeSubscription?.plan_id === planId &&
+        (!subscription_id || activeSubscription?.creem_subscription_id === subscription_id);
+
+      if (subscriptionMatchesRedirect) {
+        let completedTransactionQuery = supabase
+          .from("transactions")
+          .select("id, credits")
+          .eq("user_id", user.id)
+          .eq("credits", credits)
+          .eq("payment_method", "creem")
+          .eq("status", "completed")
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        const transactionFloor = activeSubscription?.current_period_start || null;
+        if (transactionFloor) {
+          completedTransactionQuery = completedTransactionQuery.gte("created_at", transactionFloor);
+        }
+
+        const { data: completedTransaction } = await completedTransactionQuery.maybeSingle();
+        if (completedTransaction) {
+          console.log("[verify-checkout] Subscription payment already credited:", subscriptionPaymentId);
+          return NextResponse.json({
+            success: true,
+            message: "Already processed",
+            alreadyProcessed: true,
+            credits: completedTransaction.credits,
+            debug: {
+              checkout_id,
+              order_id,
+              subscription_id,
+              paymentId: subscriptionPaymentId,
+              transactionId: completedTransaction.id,
+              planId,
+              existingCredits: completedTransaction.credits,
+            },
+          });
+        }
+      }
+
       return NextResponse.json({
         success: true,
         pending: true,

@@ -136,6 +136,106 @@ export function getCreemTransactionId(payload: unknown): string | null {
   return null;
 }
 
+export function getCreemTransactionAmount(payload: unknown): number | null {
+  const candidates: unknown[] = [payload];
+  const root = payload as Record<string, any> | null;
+  if (root) {
+    candidates.push(root.transaction, root.order, root.data, root.object);
+  }
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const record = candidate as Record<string, unknown>;
+    for (const key of ["amount", "amount_paid", "paid_amount"]) {
+      const value = Number(record[key]);
+      if (Number.isFinite(value) && value > 0) return value / 100;
+    }
+  }
+
+  return null;
+}
+
+export function unwrapCreemTransaction(
+  payload: Record<string, any> | null
+): Record<string, any> | null {
+  if (!payload) return null;
+  const wrappers: unknown[] = [payload.data, payload.items, payload.object];
+
+  for (const wrapper of wrappers) {
+    if (Array.isArray(wrapper)) {
+      const transaction = wrapper.find((item) => item && typeof item === "object");
+      if (transaction) return transaction as Record<string, any>;
+      continue;
+    }
+    if (wrapper && typeof wrapper === "object") {
+      return wrapper as Record<string, any>;
+    }
+  }
+
+  if (!Array.isArray(payload) && typeof payload === "object") {
+    return payload;
+  }
+  return null;
+}
+
+export async function getCreemTransaction(
+  transactionId: string
+): Promise<Record<string, any> | null> {
+  const data = await creemRequest<Record<string, any> | null>(
+    `/transactions?transaction_id=${encodeURIComponent(transactionId)}`
+  );
+  return unwrapCreemTransaction(data);
+}
+
+const ACTIVE_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "paused",
+  "scheduled_cancel",
+  "unpaid",
+]);
+
+export function findActiveCreemSubscription(payload: unknown): Record<string, any> | null {
+  const visit = (value: unknown, depth = 0): Record<string, any> | null => {
+    if (!value || depth > 5) return null;
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const subscription = visit(item, depth + 1);
+        if (subscription) return subscription;
+      }
+      return null;
+    }
+
+    if (typeof value !== "object") return null;
+    const record = value as Record<string, any>;
+    if (
+      typeof record.id === "string" &&
+      typeof record.status === "string" &&
+      ACTIVE_SUBSCRIPTION_STATUSES.has(record.status)
+    ) {
+      return record;
+    }
+
+    return (
+      visit(record.data, depth + 1) ||
+      visit(record.items, depth + 1) ||
+      visit(record.object, depth + 1)
+    );
+  };
+
+  return visit(payload);
+}
+
+export async function listCreemCustomerSubscriptions(
+  customerId: string
+): Promise<unknown> {
+  return await creemRequest<unknown>(
+    `/customers/${encodeURIComponent(customerId)}/subscriptions`
+  );
+}
+
 export async function getCreemCustomer(
   customerId: string
 ): Promise<Record<string, any> | null> {

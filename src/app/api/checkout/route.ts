@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import {
+  findActiveCreemSubscription,
+  findCreemCustomerIdByEmail,
+  listCreemCustomerSubscriptions,
+} from '@/lib/creem';
 
 const PLAN_PRODUCTS: Record<string, { productId: string; credits: number; name: string }> = {
   starter: {
@@ -51,6 +56,43 @@ export async function POST(request: NextRequest) {
     if (!creemApiKey || creemApiKey === 'your-creem-api-key-here') {
       console.log('[DEV] Simulating Creem checkout:', plan.name);
       return NextResponse.json({ success: true, message: 'Subscription simulated (dev mode)', credits: plan.credits });
+    }
+
+    let creemCustomerId: string | null = null;
+    let creemSubscriptions: unknown = null;
+    try {
+      creemCustomerId = await findCreemCustomerIdByEmail(user.email || '');
+      if (creemCustomerId) {
+        creemSubscriptions = await listCreemCustomerSubscriptions(creemCustomerId);
+      }
+    } catch (lookupError) {
+      console.error('[Creem] Existing subscription lookup failed:', lookupError);
+      return NextResponse.json(
+        {
+          error: 'Unable to verify existing subscriptions.',
+          detail: 'Please try again shortly. No payment checkout was created.',
+        },
+        { status: 502 }
+      );
+    }
+
+    const existingCreemSubscription = findActiveCreemSubscription(creemSubscriptions);
+    if (existingCreemSubscription) {
+      console.warn('[Creem] Active platform subscription blocks new checkout:', {
+        userId: user.id,
+        email: user.email,
+        customerId: creemCustomerId,
+        subscriptionId: existingCreemSubscription.id,
+        status: existingCreemSubscription.status,
+      });
+      return NextResponse.json(
+        {
+          error: 'You already have an active subscription.',
+          detail: 'Cancel or manage your existing subscription before starting a new checkout.',
+          subscriptionId: existingCreemSubscription.id,
+        },
+        { status: 409 }
+      );
     }
 
     const apiBase = getCreemApiBase();

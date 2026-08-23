@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import {
   getCreemCustomerId,
+  getCreemTransaction,
+  getCreemTransactionAmount,
   getCreemTransactionId,
   updateCreemCustomerMetadata,
   updateCreemCustomerMetadataByEmail,
@@ -39,6 +41,57 @@ function getEventPlanId(eventObject: Record<string, any>): string | null {
     (typeof eventObject.metadata?.plan_id === "string" ? eventObject.metadata.plan_id : null) ||
     null
   );
+}
+
+function getEventCustomerEmail(eventObject: Record<string, any>): string | null {
+  const customer = eventObject.customer;
+  if (customer && typeof customer === "object" && typeof customer.email === "string") {
+    return customer.email;
+  }
+  return typeof eventObject.customer_email === "string" ? eventObject.customer_email : null;
+}
+
+const ACTIVE_LOCAL_SUBSCRIPTION_STATUSES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "paused",
+  "scheduled_cancel",
+  "unpaid",
+]);
+
+async function hasConflictingActiveSubscription(
+  supabase: any,
+  userId: string | null,
+  incomingSubscriptionId: string | null,
+  eventType: string
+): Promise<boolean> {
+  if (!userId || !incomingSubscriptionId) return false;
+
+  const { data: existingSubscription } = await supabase
+    .from("subscriptions")
+    .select("id, status, creem_subscription_id")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  const existingSubscriptionId = existingSubscription?.creem_subscription_id || null;
+  if (
+    !existingSubscription?.id ||
+    !existingSubscriptionId ||
+    existingSubscriptionId === incomingSubscriptionId ||
+    !ACTIVE_LOCAL_SUBSCRIPTION_STATUSES.has(existingSubscription.status)
+  ) {
+    return false;
+  }
+
+  console.error("[Creem Webhook] Blocked a different active subscription from overwriting local state:", {
+    eventType,
+    userId,
+    incomingSubscriptionId,
+    existingSubscriptionId,
+    existingStatus: existingSubscription.status,
+  });
+  return true;
 }
 
 
@@ -185,6 +238,9 @@ export async function POST(request: NextRequest) {
           const subObj = eventObject.subscription;
           const subId = typeof subObj === "string" ? subObj : subObj.id;
           if (subId) {
+            if (await hasConflictingActiveSubscription(supabase, userId, subId, eventType)) {
+              break;
+            }
             await supabase.from("subscriptions").upsert({
               user_id: userId,
               plan_id: planId,
@@ -252,6 +308,9 @@ export async function POST(request: NextRequest) {
         }
 
         if (subUserId && subId) {
+          if (await hasConflictingActiveSubscription(supabase, subUserId, subId, eventType)) {
+            break;
+          }
           const { data: existingSub } = await supabase
             .from("subscriptions")
             .select("id, plan_id, credits_per_month, pending_plan, plan_change_requested_at")
@@ -332,16 +391,39 @@ export async function POST(request: NextRequest) {
           subUserId = existingBySubId?.user_id || null;
         }
 
+        const eventCustomerEmail = getEventCustomerEmail(eventObject);
+        if (!subUserId && eventCustomerEmail) {
+          const { data: existingUser } = await supabase
+            .from("users")
+            .select("id")
+            .eq("email", eventCustomerEmail)
+            .maybeSingle();
+          subUserId = existingUser?.id || null;
+          if (subUserId) {
+            console.log("[Creem Webhook] subscription.paid resolved user by customer email:", {
+              subId,
+              userId: subUserId,
+            });
+          }
+        }
+
         if (!subUserId) {
-          console.error("[Creem Webhook] subscription.paid missing user_id:", subId);
+          console.error("[Creem Webhook] subscription.paid missing user_id:", {
+            subId,
+            eventCustomerEmail: Boolean(eventCustomerEmail),
+          });
           break;
         }
 
         const { data: existingSub } = await supabase
           .from("subscriptions")
-          .select("id, user_id, plan_id, current_period_start, current_period_end, pending_plan, plan_change_requested_at")
+          .select("id, user_id, plan_id, credits_per_month, current_period_start, current_period_end, pending_plan, plan_change_requested_at")
           .eq("user_id", subUserId)
           .maybeSingle();
+
+        if (await hasConflictingActiveSubscription(supabase, subUserId, subId, eventType)) {
+          break;
+        }
 
         const { data: existingTx } = await supabase
           .from("transactions")
@@ -351,7 +433,25 @@ export async function POST(request: NextRequest) {
 
         if (existingTx) {
           console.log("[Creem Webhook] subscription.paid already processed:", paymentId);
+          const currentPlanId = existingSub?.plan_id || planId;
+          const currentCredits = existingSub?.credits_per_month ?? subCredits;
+          await syncCustomerMetadata(supabase, eventObject, subUserId, currentPlanId, currentCredits);
           break;
+        }
+
+        let transactionAmount: number | null = null;
+        try {
+          const transaction = await getCreemTransaction(paymentId);
+          transactionAmount = getCreemTransactionAmount(transaction);
+          console.log("[Creem Webhook] subscription.paid transaction amount:", {
+            paymentId,
+            transactionAmount,
+          });
+        } catch (transactionError) {
+          console.error("[Creem Webhook] Failed to load subscription transaction amount:", {
+            paymentId,
+            transactionError,
+          });
         }
 
         const now = new Date().toISOString();
@@ -412,7 +512,7 @@ export async function POST(request: NextRequest) {
 
         await supabase.from("transactions").insert({
           user_id: subUserId,
-          amount: eventObject.amount ? eventObject.amount / 100 : 0,
+          amount: transactionAmount ?? 0,
           credits: subCredits,
           payment_method: "creem",
           payment_id: paymentId,
@@ -444,6 +544,9 @@ export async function POST(request: NextRequest) {
           if (subId) {
             const subUserId = eventObject.metadata?.user_id || null;
             if (subUserId) {
+              if (await hasConflictingActiveSubscription(supabase, subUserId, subId, eventType)) {
+                break;
+              }
               await supabase.from("subscriptions").upsert({
                 user_id: subUserId,
                 plan_id: targetPlanId || "starter",

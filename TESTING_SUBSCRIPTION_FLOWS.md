@@ -3,6 +3,10 @@
 > 本文档已按当前代码实现同步，覆盖首次购买、升级、降级、取消、恢复、套餐变更限制和 webhook 回归。
 > 当前前端未提供暂停订阅入口；暂停 API 已存在但不在本手工测试范围内，如需要可单独补测。
 
+## Required test-reset rule
+
+Before reusing an account that has subscribed, always cancel its existing Creem subscription(s) and wait for the terminal state first. Only after Creem is clean should you clear or reset the Supabase subscription data. Never clear Supabase first: doing so can leave orphaned active subscriptions in Creem that continue renewing and corrupt later tests.
+
 ## 测试前准备
 
 - 已执行数据库迁移：
@@ -139,6 +143,7 @@ order by created_at desc;
 | TC-CH-03 | 付款跳转回来不重复加 Credits | 付款后等待 Dashboard 跳转，并多次刷新页面 | Credits 不重复增加；`verify-checkout` 对订阅产品返回 pending 或已处理；最终以 `subscription.paid` 为准 |
 | TC-CH-04 | Initial purchase does not consume the change slot | After a free account purchases Starter, immediately request an upgrade | plan_change_requested_at remains null after the purchase; the upgrade request succeeds and schedules Pro for the next cycle rather than returning 409 |
 | TC-CH-05 | Checkout verification stops after navigation | Complete payment, then navigate from Dashboard to another page while credit verification is still pending | The payment URL is consumed immediately; no delayed success toast appears on the other page; returning to Dashboard does not replay the Payment received toast; credits continue to be granted by the webhook |
+| TC-CH-06 | Creem orphan subscription blocks new checkout | Delete or terminal-mark the local Supabase row only for setup, while the same Creem customer still has an active/scheduled/past-due/paused/unpaid subscription; then call /api/checkout | Returns 409 with the existing Creem subscription context; no Creem checkout URL is created; investigate and cancel the orphan in Creem before continuing tests |
 
 ---
 
@@ -153,11 +158,12 @@ order by created_at desc;
 | TC-WH-05 | `subscription.expired` resets subscription and credits | `users.credits=0`; `users.plan=free`; `subscriptions.status=expired`; `subscriptions.plan_id=free`; `subscriptions.credits_per_month=NULL`; `pending_plan=null`; `plan_change_requested_at=null` |
 | TC-WH-06 | 非法 webhook 签名 | `/api/webhooks/creem` 返回 401，且不修改数据库 |
 | TC-WH-07 | `subscription.canceled` terminal reset | `subscriptions.status=canceled`; `subscriptions.plan_id=free`; `subscriptions.credits_per_month=NULL`; `pending_plan=null`; `plan_change_requested_at=null`; `users.plan=free`; `users.credits=0` |
-| TC-WH-08 | `subscription.paid` 金额字段 | 若 Creem payload 不含 `amount`，`transactions.amount=0`；`credits` 仍按套餐写入 10 或 30 |
+| TC-WH-08 | `subscription.paid` records the real paid amount | Complete a real paid subscription event and inspect the transaction row | The handler uses `last_transaction_id` to call `GET /v1/transactions`; `transactions.amount` equals the Creem-paid amount (for example 9.90 for Starter); Credits still follow the paid plan. If the lookup temporarily fails, credits are not blocked and the amount remains 0 for reconciliation follow-up |
 | TC-WH-09 | `subscription.update` 首次同步 | 初始订阅同步不设置 `plan_change_requested_at`，不占用每周期变更次数 |
 | TC-WH-10 | `refund.created` 退款回归 | 写一条负数 transaction；用户 credits 按原交易 credits 扣回，且不低于 0 |
 | TC-WH-11 | Next-cycle subscription.paid activates a scheduled plan change | After a scheduled plan change reaches the next billing period, inspect the genuine next-cycle `subscription.paid` result | The paid plan becomes active; pending_plan=null and plan_change_requested_at=null because the new-cycle lock is released; one full-cycle transaction and customer metadata are synchronized to the paid plan |
-| TC-WH-12 | Metadata sync retries by email | Send subscription.paid with a stale or synthetic customer ID that returns 404, using a user whose registered email matches a real Creem customer | The handler logs the event-customer failure, retries by email, and customer metadata becomes the active plan and credits |
+| TC-WH-12 | Metadata sync retries by email | Send a new subscription.paid event with a unique payment/transaction ID and a stale or synthetic customer ID that returns 404; preserve a valid metadata.user_id or subscription ID, and use a user whose registered email matches a real Creem customer | The main webhook state and transaction are processed; the handler logs the event-customer failure, retries by email, and customer metadata becomes the active plan and credits. A redelivered old payment must not create another transaction or revert metadata to the old event plan |
+| TC-WH-13 | Different active subscription cannot overwrite local state | With the local active subscription bound to sub_new, deliver checkout.completed, subscription.active, subscription.paid, or subscription.update for a different sub_old | The webhook returns 200, logs the blocked subscription conflict, changes no user/subscription/transaction data, and does not replace creem_subscription_id |
 
 ---
 

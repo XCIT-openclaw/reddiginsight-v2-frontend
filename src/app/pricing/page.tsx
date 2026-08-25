@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Check, Zap, CreditCard, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DashboardNav } from '@/components/DashboardNav'
+import { buildPlanChangeRequest } from '@/lib/subscription-state'
 
 interface PricingPlan {
   id: string
@@ -184,17 +185,18 @@ export default function PricingPage() {
 
   const executePlanChange = async (plan: PricingPlan) => {
     const isUpgrade = plan.id === 'pro' && currentPlan === 'starter'
-    const isDowngrade = plan.id === 'starter' && currentPlan === 'pro'
+    const request = buildPlanChangeRequest({
+      currentPlanId: currentPlan as 'starter' | 'pro',
+      targetPlanId: plan.id as 'starter' | 'pro',
+      targetProductId: plan.productId || '',
+    })
     setLoadingPlan(plan.id)
 
     try {
-      const response = await fetch('/api/subscriptions/upgrade', {
+      const response = await fetch(request.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          product_id: plan.productId,
-          update_behavior: 'proration-none',
-        }),
+        body: JSON.stringify(request.body),
       })
 
       const data = await response.json()

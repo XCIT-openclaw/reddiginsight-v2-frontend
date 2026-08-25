@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import crypto from "crypto";
 import {
+  shouldResetUserAfterTerminalSubscription,
+} from "@/lib/subscription-state";
+import {
   getCreemCustomerId,
   getCreemTransaction,
   getCreemTransactionAmount,
@@ -59,6 +62,79 @@ const ACTIVE_LOCAL_SUBSCRIPTION_STATUSES = new Set([
   "scheduled_cancel",
   "unpaid",
 ]);
+
+async function resetUserAfterTerminalSubscriptionIfSafe(
+  supabase: any,
+  eventObject: Record<string, any>,
+  knownUserId?: string | null
+): Promise<boolean> {
+  let userId = knownUserId || eventObject.metadata?.user_id || null;
+
+  if (userId) {
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("id", userId)
+      .maybeSingle();
+    if (!existingUser?.id) userId = null;
+  }
+
+  if (!userId) {
+    const customerEmail = getEventCustomerEmail(eventObject);
+    if (!customerEmail) return false;
+    const { data: existingUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("email", customerEmail)
+      .maybeSingle();
+    userId = existingUser?.id || null;
+  }
+
+  if (!userId) {
+    console.error("[Creem Webhook] Terminal subscription reset could not resolve user", {
+      subscriptionId: eventObject.id,
+    });
+    return false;
+  }
+
+  const { data: userSubscriptions } = await supabase
+    .from("subscriptions")
+    .select("id, status, creem_subscription_id")
+    .eq("user_id", userId);
+
+  const terminalCreemSubscriptionId =
+    typeof eventObject.id === "string" ? eventObject.id : null;
+  if (
+    !shouldResetUserAfterTerminalSubscription(
+      userSubscriptions || [],
+      terminalCreemSubscriptionId
+    )
+  ) {
+    console.warn("[Creem Webhook] Terminal subscription reset blocked because another active subscription exists", {
+      userId,
+      subscriptionId: eventObject.id,
+      subscriptionStates: userSubscriptions?.map((subscription: any) => ({
+        id: subscription.id,
+        status: subscription.status,
+        creemSubscriptionId: subscription.creem_subscription_id,
+      })) || [],
+    });
+    return false;
+  }
+
+  await supabase.from("users").update({
+    credits: 0,
+    plan: "free",
+    updated_at: new Date().toISOString(),
+  }).eq("id", userId);
+
+  await syncCustomerMetadata(supabase, eventObject, userId, "free", 0);
+  console.log("[Creem Webhook] Terminal subscription reset user to Free:", {
+    userId,
+    subscriptionId: eventObject.id,
+  });
+  return true;
+}
 
 async function hasConflictingActiveSubscription(
   supabase: any,
@@ -652,13 +728,9 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
           if (canceledSub?.user_id) {
-            await supabase.from("users").update({
-              credits: 0,
-              plan: "free",
-              updated_at: now,
-            }).eq("id", canceledSub.user_id);
-            console.log("[Creem Webhook] Reset user to Free after canceled subscription:", canceledSub.user_id);
-            await syncCustomerMetadata(supabase, eventObject, canceledSub.user_id, "free", 0);
+            await resetUserAfterTerminalSubscriptionIfSafe(supabase, eventObject, canceledSub.user_id);
+          } else {
+            await resetUserAfterTerminalSubscriptionIfSafe(supabase, eventObject);
           }
         }
         break;
@@ -705,12 +777,13 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
           if (unpaidSub?.user_id) {
-            await supabase.from("users").update({
-              credits: 0,
-              plan: "free",
-              updated_at: now,
-            }).eq("id", unpaidSub.user_id);
-            await syncCustomerMetadata(supabase, eventObject, unpaidSub.user_id, "free", 0);
+            await resetUserAfterTerminalSubscriptionIfSafe(
+              supabase,
+              eventObject,
+              unpaidSub.user_id
+            );
+          } else {
+            await resetUserAfterTerminalSubscriptionIfSafe(supabase, eventObject);
           }
         }
         break;
@@ -735,13 +808,13 @@ export async function POST(request: NextRequest) {
             .eq("creem_subscription_id", subId)
             .single();
           if (expiredSub?.user_id) {
-            await supabase.from("users").update({
-              credits: 0,
-              plan: "free",
-              updated_at: new Date().toISOString(),
-            }).eq("id", expiredSub.user_id);
-            console.log("[Creem Webhook] Credits reset to 0 for expired subscription, user:", expiredSub.user_id);
-            await syncCustomerMetadata(supabase, eventObject, expiredSub.user_id, "free", 0);
+            await resetUserAfterTerminalSubscriptionIfSafe(
+              supabase,
+              eventObject,
+              expiredSub.user_id
+            );
+          } else {
+            await resetUserAfterTerminalSubscriptionIfSafe(supabase, eventObject);
           }
         }
         break;

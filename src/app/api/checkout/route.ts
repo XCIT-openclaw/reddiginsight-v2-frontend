@@ -44,7 +44,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'You already have an active subscription.',
-          detail: 'Please change your plan from the Pricing page instead of starting a new checkout.',
+          // Temporary production copy: plan changes are hidden while Creem investigates 403.
+          detail: 'You already have an active subscription.',
         },
         { status: 409 }
       );

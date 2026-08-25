@@ -4,6 +4,13 @@ import * as subscriptionState from "./subscription-state.ts";
 
 const { shouldResetUserAfterTerminalSubscription } = subscriptionState;
 
+test("temporarily rejects plan changes without blocking lifecycle actions", () => {
+  assert.equal(subscriptionState.shouldRejectPlanChangeAction("upgrade"), true);
+  assert.equal(subscriptionState.shouldRejectPlanChangeAction("update"), true);
+  assert.equal(subscriptionState.shouldRejectPlanChangeAction("cancel"), false);
+  assert.equal(subscriptionState.shouldRejectPlanChangeAction("resume"), false);
+});
+
 test("builds the correct API request for upgrades and downgrades", () => {
   const buildPlanChangeRequest = (
     subscriptionState as { buildPlanChangeRequest?: unknown }

@@ -1,3 +1,11 @@
+// Temporary production switch: Creem plan-change calls currently return 403.
+// Keep the implementation below intact and restore this flag after Creem resolves the endpoint.
+export const PLAN_CHANGE_FEATURE_ENABLED = false;
+
+export function shouldRejectPlanChangeAction(action: string): boolean {
+  return !PLAN_CHANGE_FEATURE_ENABLED && (action === "upgrade" || action === "update");
+}
+
 type PaidPlanId = "starter" | "pro";
 
 export interface SubscriptionPlanChangeInput {

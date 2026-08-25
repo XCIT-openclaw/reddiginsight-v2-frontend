@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Check, Zap, CreditCard, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { DashboardNav } from '@/components/DashboardNav'
-import { buildPlanChangeRequest } from '@/lib/subscription-state'
+import { buildPlanChangeRequest, PLAN_CHANGE_FEATURE_ENABLED } from '@/lib/subscription-state'
 
 interface PricingPlan {
   id: string
@@ -94,6 +94,9 @@ export default function PricingPage() {
   const hasPlanChangeRequested = Boolean(subscriptionStatus?.plan_change_requested_at)
   const pendingPlan = subscriptionStatus?.pending_plan || null
   const isCancellationScheduled = subscriptionStatus?.status === 'scheduled_cancel'
+  // Temporary production release guard: plan changes are disabled while Creem returns 403.
+  const planChangesTemporarilyDisabled =
+    !PLAN_CHANGE_FEATURE_ENABLED && (currentPlan === 'starter' || currentPlan === 'pro')
 
   useEffect(() => {
     if (!user) return
@@ -161,6 +164,10 @@ export default function PricingPage() {
 
   const handlePlanChange = (plan: PricingPlan) => {
     if (!plan.available || !plan.productId || !user) return
+
+    // Temporary production guard: retain the implementation below, but do not expose
+    // upgrade/downgrade while the Creem plan-change endpoint returns 403.
+    if (!PLAN_CHANGE_FEATURE_ENABLED) return
 
     if (isCancellationScheduled) {
       toast.error('Subscription cancellation scheduled', {
@@ -267,7 +274,7 @@ export default function PricingPage() {
             </div>
           )}
 
-          {user && !isCancellationScheduled && (currentPlan === 'starter' || currentPlan === 'pro') && (
+          {PLAN_CHANGE_FEATURE_ENABLED && user && !isCancellationScheduled && (currentPlan === 'starter' || currentPlan === 'pro') && (
             <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border bg-muted/30 text-sm text-muted-foreground text-center">
               Plan changes take effect at the start of your next billing cycle. Your current plan and credits remain available until the end of this cycle. The new plan&apos;s price and monthly credits begin next cycle.
             </div>
@@ -287,7 +294,7 @@ export default function PricingPage() {
             </div>
           )}
 
-          {user && hasPlanChangeRequested && (
+          {PLAN_CHANGE_FEATURE_ENABLED && user && hasPlanChangeRequested && (
             <div className="max-w-3xl mx-auto mb-8 px-4 py-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-700 text-center">
               {pendingPlan === 'starter'
                 ? 'Your downgrade to Starter is scheduled for the next billing cycle. You can change plans again at the start of that cycle.'
@@ -330,12 +337,12 @@ export default function PricingPage() {
                       {plan.credits} credits per month
                     </div>
                   )}
-                  {user && plan.id === 'pro' && currentPlan === 'starter' && (
+                  {PLAN_CHANGE_FEATURE_ENABLED && user && plan.id === 'pro' && currentPlan === 'starter' && (
                     <div className="mt-2 text-xs text-muted-foreground">
                       Schedule an upgrade to keep Starter and your current credits for the rest of this cycle. Pro starts next cycle at $29.90/month with 30 credits.
                     </div>
                   )}
-                  {user && plan.id === 'starter' && currentPlan === 'pro' && (
+                  {PLAN_CHANGE_FEATURE_ENABLED && user && plan.id === 'starter' && currentPlan === 'pro' && (
                     <div className="mt-2 text-xs text-muted-foreground">
                       Your current 30 credits stay available until this billing cycle ends. Starting next cycle, you will get 10 credits per month.
                     </div>
@@ -363,7 +370,7 @@ export default function PricingPage() {
                         handlePurchase(plan)
                       }
                     }}
-                    disabled={loadingPlan !== null || !plan.available || (user ? plan.id === currentPlan : false) || Boolean(user && hasPlanChangeRequested && plan.id !== currentPlan) || Boolean(user && isCancellationScheduled && plan.id !== currentPlan)}
+                    disabled={loadingPlan !== null || !plan.available || (user ? plan.id === currentPlan : false) || planChangesTemporarilyDisabled || Boolean(user && hasPlanChangeRequested && plan.id !== currentPlan) || Boolean(user && isCancellationScheduled && plan.id !== currentPlan)}
                   >
                     {loadingPlan === plan.id ? (
                       <>
@@ -373,6 +380,8 @@ export default function PricingPage() {
                     ) : plan.available ? (
                       user && plan.id === currentPlan ? (
                         'Current Plan'
+                      ) : user && planChangesTemporarilyDisabled ? (
+                        'Plan Changes Unavailable'
                       ) : user && plan.id === 'pro' && currentPlan === 'starter' ? (
                         'Schedule Upgrade'
                       ) : user && plan.id === 'starter' && currentPlan === 'pro' ? (
@@ -387,6 +396,11 @@ export default function PricingPage() {
                       'Coming Soon'
                     )}
                   </Button>
+                  {user && plan.id === currentPlan && (currentPlan === 'starter' || currentPlan === 'pro') && (
+                    <p className="mt-3 text-xs text-muted-foreground text-center">
+                      You can cancel this subscription from the Settings page. It remains active until the end of your current billing cycle.
+                    </p>
+                  )}
                 </CardFooter>
               </Card>
             ))}
@@ -438,7 +452,9 @@ export default function PricingPage() {
         </div>
       </div>
 
-      <Dialog open={Boolean(pendingPlanChange)} onOpenChange={(open) => !open && !loadingPlan && setPendingPlanChange(null)}>
+      {/* Temporary production guard: keep this confirmation flow compiled and ready,
+          but it cannot open while Creem plan changes are disabled. */}
+      <Dialog open={PLAN_CHANGE_FEATURE_ENABLED && Boolean(pendingPlanChange)} onOpenChange={(open) => !open && !loadingPlan && setPendingPlanChange(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Confirm your plan change</DialogTitle>

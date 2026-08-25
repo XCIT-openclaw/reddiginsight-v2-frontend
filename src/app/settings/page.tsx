@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { PLAN_CHANGE_FEATURE_ENABLED } from '@/lib/subscription-state'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 import { DashboardNav } from '@/components/DashboardNav'
@@ -294,7 +295,9 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {subscriptionStatus?.pending_plan && (
+              {/* Temporary production guard: hide scheduled plan-change messaging while
+                  upgrade/downgrade is disabled. Keep the block for a one-switch restoration. */}
+              {PLAN_CHANGE_FEATURE_ENABLED && subscriptionStatus?.pending_plan && (
                 <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-sm text-amber-700">
                   Your next plan is {formatPlan(subscriptionStatus.pending_plan)}. It will start at the beginning of your next billing cycle.
                 </div>

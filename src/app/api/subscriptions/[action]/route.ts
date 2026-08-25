@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { shouldRejectPlanChangeAction } from "@/lib/subscription-state";
 import {
   cancelCreemSubscription,
   CreemApiError,
@@ -61,6 +62,18 @@ export async function POST(
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Temporary production guard: preserve the plan-change implementation below, but
+  // return 503 until Creem resolves the 403 from its plan-change endpoint.
+  if (shouldRejectPlanChangeAction(action)) {
+    return NextResponse.json(
+      {
+        error: "Subscription plan changes are temporarily unavailable.",
+        details: "Existing subscriptions, purchases, cancellation, and reactivation remain available.",
+      },
+      { status: 503 }
+    );
   }
 
   const { data: subscription } = await supabase

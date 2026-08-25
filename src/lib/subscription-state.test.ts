@@ -38,9 +38,9 @@ test("builds the correct API request for upgrades and downgrades", () => {
       targetProductId: "prod_starter",
     }),
     {
-      endpoint: "/api/subscriptions/update",
+      endpoint: "/api/subscriptions/upgrade",
       body: {
-        items: [{ product_id: "prod_starter" }],
+        product_id: "prod_starter",
         update_behavior: "proration-none",
       },
     }

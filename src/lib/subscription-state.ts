@@ -1,3 +1,16 @@
+type PaidPlanId = "starter" | "pro";
+
+export interface SubscriptionPlanChangeInput {
+  currentPlanId: PaidPlanId;
+  targetPlanId: PaidPlanId;
+  targetProductId: string;
+}
+
+export interface SubscriptionPlanChangeRequest {
+  endpoint: "/api/subscriptions/upgrade";
+  body: Record<string, unknown>;
+}
+
 export interface SubscriptionStateSnapshot {
   id: string;
   status: string | null;
@@ -12,6 +25,27 @@ const ACTIVE_SUBSCRIPTION_STATUSES = new Set([
   "scheduled_cancel",
   "unpaid",
 ]);
+
+export function buildPlanChangeRequest(
+  input: SubscriptionPlanChangeInput
+): SubscriptionPlanChangeRequest {
+  const isUpgrade =
+    input.currentPlanId === "starter" && input.targetPlanId === "pro";
+  const isDowngrade =
+    input.currentPlanId === "pro" && input.targetPlanId === "starter";
+
+  if (!isUpgrade && !isDowngrade) {
+    throw new Error("Invalid subscription plan change direction");
+  }
+
+  return {
+    endpoint: "/api/subscriptions/upgrade",
+    body: {
+      product_id: input.targetProductId,
+      update_behavior: "proration-none",
+    },
+  };
+}
 
 export function shouldResetUserAfterTerminalSubscription(
   subscriptions: SubscriptionStateSnapshot[],
@@ -28,46 +62,4 @@ export function shouldResetUserAfterTerminalSubscription(
     const status = subscription.status || "";
     return ACTIVE_SUBSCRIPTION_STATUSES.has(status);
   });
-}
-type PaidPlanId = "starter" | "pro";
-
-export interface SubscriptionPlanChangeInput {
-  currentPlanId: PaidPlanId;
-  targetPlanId: PaidPlanId;
-  targetProductId: string;
-}
-
-export interface SubscriptionPlanChangeRequest {
-  endpoint: "/api/subscriptions/upgrade" | "/api/subscriptions/update";
-  body: Record<string, unknown>;
-}
-export function buildPlanChangeRequest(
-  input: SubscriptionPlanChangeInput
-): SubscriptionPlanChangeRequest {
-  const isUpgrade =
-    input.currentPlanId === "starter" && input.targetPlanId === "pro";
-  const isDowngrade =
-    input.currentPlanId === "pro" && input.targetPlanId === "starter";
-
-  if (!isUpgrade && !isDowngrade) {
-    throw new Error("Invalid subscription plan change direction");
-  }
-
-  if (isUpgrade) {
-    return {
-      endpoint: "/api/subscriptions/upgrade",
-      body: {
-        product_id: input.targetProductId,
-        update_behavior: "proration-none",
-      },
-    };
-  }
-
-  return {
-    endpoint: "/api/subscriptions/update",
-    body: {
-      items: [{ product_id: input.targetProductId }],
-      update_behavior: "proration-none",
-    },
-  };
 }

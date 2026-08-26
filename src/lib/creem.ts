@@ -114,6 +114,32 @@ export function getCreemCustomerId(payload: unknown): string | null {
   return null;
 }
 
+export function getCreemCheckoutSubscriptionId(payload: unknown): string | null {
+  const root = payload as Record<string, any> | null;
+  if (!root || typeof root !== "object") return null;
+
+  if (typeof root.subscription === "string" && root.subscription.trim()) {
+    return root.subscription.trim();
+  }
+  if (
+    root.subscription &&
+    typeof root.subscription === "object" &&
+    typeof root.subscription.id === "string" &&
+    root.subscription.id.trim()
+  ) {
+    return root.subscription.id.trim();
+  }
+  if (typeof root.subscription_id === "string" && root.subscription_id.trim()) {
+    return root.subscription_id.trim();
+  }
+
+  if (typeof root.id === "string" && root.id.startsWith("sub_")) {
+    return root.id;
+  }
+
+  return null;
+}
+
 export function getCreemTransactionId(payload: unknown): string | null {
   const candidates: unknown[] = [payload];
   const root = payload as Record<string, any> | null;
@@ -226,6 +252,50 @@ export function findActiveCreemSubscription(payload: unknown): Record<string, an
   };
 
   return visit(payload);
+}
+
+export function unwrapCreemSubscription(
+  payload: Record<string, any> | null
+): Record<string, any> | null {
+  if (!payload) return null;
+  const wrappers: unknown[] = [payload.data, payload.items, payload.object];
+
+  for (const wrapper of wrappers) {
+    if (Array.isArray(wrapper)) {
+      const subscription = wrapper.find((item) => item && typeof item === "object");
+      if (subscription) return subscription as Record<string, any>;
+      continue;
+    }
+    if (wrapper && typeof wrapper === "object") {
+      return wrapper as Record<string, any>;
+    }
+  }
+
+  if (!Array.isArray(payload) && typeof payload === "object") return payload;
+  return null;
+}
+
+export async function getCreemSubscription(
+  subscriptionId: string
+): Promise<Record<string, any> | null> {
+  const data = await creemRequest<Record<string, any> | null>(
+    `/subscriptions?subscription_id=${encodeURIComponent(subscriptionId)}`
+  );
+  return unwrapCreemSubscription(data);
+}
+
+export function getCreemSubscriptionUserId(payload: unknown): string | null {
+  const subscription = unwrapCreemSubscription(payload as Record<string, any> | null);
+  const metadata = subscription?.metadata;
+  if (!metadata || typeof metadata !== "object") return null;
+  const userId = metadata.user_id || metadata.userId;
+  return typeof userId === "string" && userId.trim() ? userId.trim() : null;
+}
+
+export function getCreemSubscriptionCustomerEmail(payload: unknown): string | null {
+  const subscription = unwrapCreemSubscription(payload as Record<string, any> | null);
+  const email = subscription?.customer?.email || subscription?.customer_email;
+  return typeof email === "string" && email.trim() ? email.trim() : null;
 }
 
 export async function listCreemCustomerSubscriptions(

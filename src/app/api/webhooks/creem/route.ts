@@ -5,7 +5,11 @@ import {
   shouldResetUserAfterTerminalSubscription,
 } from "@/lib/subscription-state";
 import {
+  getCreemCheckoutSubscriptionId,
   getCreemCustomerId,
+  getCreemSubscription,
+  getCreemSubscriptionCustomerEmail,
+  getCreemSubscriptionUserId,
   getCreemTransaction,
   getCreemTransactionAmount,
   getCreemTransactionId,
@@ -80,14 +84,59 @@ async function resetUserAfterTerminalSubscriptionIfSafe(
   }
 
   if (!userId) {
-    const customerEmail = getEventCustomerEmail(eventObject);
-    if (!customerEmail) return false;
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select("id")
-      .eq("email", customerEmail)
-      .maybeSingle();
-    userId = existingUser?.id || null;
+    let remoteSubscription: Record<string, any> | null = null;
+    const subscriptionId = typeof eventObject.id === "string" ? eventObject.id : null;
+    if (subscriptionId) {
+      try {
+        remoteSubscription = await getCreemSubscription(subscriptionId);
+      } catch (subscriptionLookupError) {
+        console.warn("[Creem Webhook] Terminal subscription lookup failed", {
+          subscriptionId,
+          subscriptionLookupError,
+        });
+      }
+    }
+
+    const remoteUserId = remoteSubscription
+      ? getCreemSubscriptionUserId(remoteSubscription)
+      : null;
+    if (remoteUserId) {
+      const { data: existingUser } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", remoteUserId)
+        .maybeSingle();
+      if (existingUser?.id) userId = existingUser.id;
+    }
+
+    if (!userId) {
+      const customerEmail =
+        getEventCustomerEmail(eventObject) ||
+        (remoteSubscription
+          ? getCreemSubscriptionCustomerEmail(remoteSubscription)
+          : null);
+      if (customerEmail) {
+        const { data: existingUser } = await supabase
+          .from("users")
+          .select("id, email")
+          .ilike("email", customerEmail);
+        userId =
+          existingUser?.find(
+            (candidate: { id: string; email: string }) =>
+              candidate.email?.toLowerCase() === customerEmail.toLowerCase()
+          )?.id || null;
+      }
+    }
+
+    if (!userId && remoteSubscription) {
+      const remoteCustomerId = getCreemCustomerId(remoteSubscription);
+      if (remoteCustomerId) {
+        eventObject.customer_id = remoteCustomerId;
+      }
+      if (remoteSubscription.customer && typeof remoteSubscription.customer === "object") {
+        eventObject.customer = remoteSubscription.customer;
+      }
+    }
   }
 
   if (!userId) {
@@ -310,9 +359,13 @@ export async function POST(request: NextRequest) {
         // Recurring subscriptions are credited only by subscription.paid.
         // Creem sends checkout.completed + subscription.paid for the initial charge,
         // so granting credits here would double-count the same purchase.
-        if (eventObject.subscription) {
-          const subObj = eventObject.subscription;
-          const subId = typeof subObj === "string" ? subObj : subObj.id;
+        const checkoutSubscriptionId = getCreemCheckoutSubscriptionId(eventObject);
+        if (checkoutSubscriptionId) {
+          const subObj =
+            eventObject.subscription && typeof eventObject.subscription === "object"
+              ? eventObject.subscription
+              : {};
+          const subId = checkoutSubscriptionId;
           if (subId) {
             if (await hasConflictingActiveSubscription(supabase, userId, subId, eventType)) {
               break;

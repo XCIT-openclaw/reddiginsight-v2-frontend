@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { findActiveCreemSubscription, getCreemTransactionAmount, unwrapCreemTransaction } from "./creem.ts";
+import {
+  findActiveCreemSubscription,
+  getCreemCheckoutSubscriptionId,
+  getCreemSubscriptionCustomerEmail,
+  getCreemSubscriptionUserId,
+  getCreemTransactionAmount,
+  unwrapCreemTransaction,
+  unwrapCreemSubscription,
+} from "./creem.ts";
 
 test("reads a paid transaction amount in minor units", () => {
   assert.equal(getCreemTransactionAmount({ amount: 990, status: "paid" }), 9.9);
@@ -15,12 +23,45 @@ test("returns null when no transaction amount is available", () => {
   assert.equal(getCreemTransactionAmount({ status: "paid" }), null);
 });
 
+test("reads subscription references from checkout payloads", () => {
+  assert.equal(
+    getCreemCheckoutSubscriptionId({ subscription: { id: "sub_object" } }),
+    "sub_object"
+  );
+  assert.equal(
+    getCreemCheckoutSubscriptionId({ subscription: "sub_string" }),
+    "sub_string"
+  );
+  assert.equal(
+    getCreemCheckoutSubscriptionId({ subscription_id: "sub_top_level" }),
+    "sub_top_level"
+  );
+  assert.equal(getCreemCheckoutSubscriptionId({ id: "sub_event_object" }), "sub_event_object");
+  assert.equal(getCreemCheckoutSubscriptionId({}), null);
+});
+
 test("unwraps transaction API response wrappers", () => {
   const expected = { id: "tran_123", amount: 990, status: "paid" };
   assert.equal(unwrapCreemTransaction({ data: expected }), expected);
   assert.equal(unwrapCreemTransaction({ items: [expected] }), expected);
   assert.equal(unwrapCreemTransaction({ object: expected }), expected);
   assert.equal(unwrapCreemTransaction(expected), expected);
+});
+
+test("unwraps subscription API responses and resolves user identity", () => {
+  const expected = {
+    id: "sub_terminal",
+    status: "canceled",
+    metadata: { user_id: "user-123" },
+    customer: { id: "cust-123", email: "user@example.com" },
+  };
+
+  assert.equal(unwrapCreemSubscription({ data: expected }), expected);
+  assert.equal(unwrapCreemSubscription({ items: [expected] }), expected);
+  assert.equal(unwrapCreemSubscription({ object: expected }), expected);
+  assert.equal(unwrapCreemSubscription(expected), expected);
+  assert.equal(getCreemSubscriptionUserId({ data: expected }), "user-123");
+  assert.equal(getCreemSubscriptionCustomerEmail({ object: expected }), "user@example.com");
 });
 
 test("finds an active Creem customer subscription across response wrappers", () => {

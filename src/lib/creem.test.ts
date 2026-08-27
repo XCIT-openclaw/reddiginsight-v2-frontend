@@ -5,7 +5,9 @@ import {
   getCreemCheckoutSubscriptionId,
   getCreemSubscriptionCustomerEmail,
   getCreemSubscriptionUserId,
+  getCreemRefundAmount,
   getCreemTransactionAmount,
+  getCreemTransactionId,
   unwrapCreemTransaction,
   unwrapCreemSubscription,
 } from "./creem.ts";
@@ -17,6 +19,22 @@ test("reads a paid transaction amount in minor units", () => {
 test("reads alternate transaction amount fields", () => {
   assert.equal(getCreemTransactionAmount({ amount_paid: "2990", status: "paid" }), 29.9);
   assert.equal(getCreemTransactionAmount({ order: { amount: 990 }, status: "paid" }), 9.9);
+});
+
+test("reads the official Creem refund amount as negative dollars", () => {
+  assert.equal(getCreemRefundAmount({ refund: { refund_amount: 2990 } }), -29.9);
+  assert.equal(getCreemRefundAmount({ refund_amount: 1210 }), -12.1);
+  assert.equal(getCreemRefundAmount({ transaction: { refund_amount: 990 } }), -9.9);
+  assert.equal(getCreemRefundAmount({ refund: { refund_amount: 0 } }), null);
+  assert.equal(getCreemRefundAmount({}), null);
+});
+
+test("reads transaction references nested in refund payloads", () => {
+  assert.equal(getCreemTransactionId({ refund: { transaction_id: "tran_123" } }), "tran_123");
+  assert.equal(
+    getCreemTransactionId({ refund: { transaction: { id: "tran_456" } } }),
+    "tran_456"
+  );
 });
 
 test("returns null when no transaction amount is available", () => {

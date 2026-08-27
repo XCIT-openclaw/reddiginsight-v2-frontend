@@ -7,6 +7,7 @@ import {
 import {
   getCreemCheckoutSubscriptionId,
   getCreemCustomerId,
+  getCreemRefundAmount,
   getCreemSubscription,
   getCreemSubscriptionCustomerEmail,
   getCreemSubscriptionUserId,
@@ -906,7 +907,7 @@ export async function POST(request: NextRequest) {
           if (!existingRefund) {
             await supabase.from("transactions").insert({
               user_id: tx.user_id,
-              amount: -((eventObject.refund_amount ?? eventObject.transaction?.refund_amount ?? eventObject.transaction?.amount ?? eventObject.amount ?? 0) / 100),
+              amount: getCreemRefundAmount(eventObject) ?? 0,
               credits: -tx.credits,
               payment_method: "creem",
               payment_id: refundId,

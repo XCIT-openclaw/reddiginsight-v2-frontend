@@ -162,6 +162,35 @@ export function getCreemTransactionId(payload: unknown): string | null {
   return null;
 }
 
+export function getCreemRefundAmount(payload: unknown): number | null {
+  const root = payload as Record<string, any> | null;
+  if (!root || typeof root !== "object") return null;
+
+  const refund =
+    root.refund && typeof root.refund === "object"
+      ? (root.refund as Record<string, unknown>)
+      : null;
+  const transaction =
+    root.transaction && typeof root.transaction === "object"
+      ? (root.transaction as Record<string, unknown>)
+      : null;
+
+  const candidates: unknown[] = [
+    refund?.refund_amount,
+    root.refund_amount,
+    transaction?.refund_amount,
+    transaction?.amount,
+    root.amount,
+  ];
+
+  for (const candidate of candidates) {
+    const value = Number(candidate);
+    if (Number.isFinite(value) && value > 0) return -value / 100;
+  }
+
+  return null;
+}
+
 export function getCreemTransactionAmount(payload: unknown): number | null {
   const candidates: unknown[] = [payload];
   const root = payload as Record<string, any> | null;

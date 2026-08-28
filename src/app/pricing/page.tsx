@@ -79,7 +79,7 @@ const plans: PricingPlan[] = [
   },
 ]
 
-const TAX_EXCLUSIVE_LABEL = "Tax exclusive";
+const TAX_EXCLUSIVE_LABEL = "(Tax exclusive)";
 
 export default function PricingPage() {
   const { user, profile, refreshProfile } = useAuth()
@@ -329,7 +329,7 @@ export default function PricingPage() {
                       <>
                         <span className="text-3xl font-bold text-foreground">${plan.price}</span>
                         <span className="text-foreground ml-1">/mo</span>
-                        <div className="mt-1 text-xs text-muted-foreground">{TAX_EXCLUSIVE_LABEL}</div>
+                        <span className="ml-1 text-xs text-muted-foreground">{TAX_EXCLUSIVE_LABEL}</span>
                       </>
                     ) : (
                       <span className="text-2xl font-semibold text-muted-foreground">{plan.price}</span>
@@ -361,7 +361,7 @@ export default function PricingPage() {
                     ))}
                   </ul>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex-col">
                   <Button
                     className="w-full"
                     variant={plan.popular ? 'default' : 'outline'}

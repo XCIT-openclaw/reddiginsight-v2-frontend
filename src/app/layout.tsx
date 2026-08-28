@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 import { Providers } from "@/components/Providers";
 import {
   HOME_DESCRIPTION,
@@ -72,6 +73,7 @@ export default function RootLayout({
     <html lang="en" className="min-h-full antialiased">
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
+        <Analytics />
       </body>
     </html>
   );

@@ -79,6 +79,8 @@ const plans: PricingPlan[] = [
   },
 ]
 
+const TAX_EXCLUSIVE_LABEL = "Tax exclusive";
+
 export default function PricingPage() {
   const { user, profile, refreshProfile } = useAuth()
   const router = useRouter()
@@ -327,6 +329,7 @@ export default function PricingPage() {
                       <>
                         <span className="text-3xl font-bold text-foreground">${plan.price}</span>
                         <span className="text-foreground ml-1">/mo</span>
+                        <div className="mt-1 text-xs text-muted-foreground">{TAX_EXCLUSIVE_LABEL}</div>
                       </>
                     ) : (
                       <span className="text-2xl font-semibold text-muted-foreground">{plan.price}</span>

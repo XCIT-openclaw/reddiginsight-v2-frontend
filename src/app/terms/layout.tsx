@@ -1,10 +1,13 @@
-import { Metadata } from 'next';
+import type { ReactNode } from "react";
+import { createPublicMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: 'Terms of Service – ReddigInsight',
-  description: 'Terms and conditions for using the ReddigInsight AI-powered Reddit analysis service.',
-};
+export const metadata = createPublicMetadata({
+  title: "Terms of Service",
+  description:
+    "Review the terms for using ReddigInsight AI-powered Reddit community analysis, credits, subscriptions, and generated reports.",
+  path: "/terms",
+});
 
-export default function TermsLayout({ children }: { children: React.ReactNode }) {
+export default function TermsLayout({ children }: { children: ReactNode }) {
   return children;
 }

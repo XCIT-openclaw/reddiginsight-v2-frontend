@@ -25,6 +25,7 @@ export const PRIVATE_SEO_PATH_PREFIXES = [
   "/login",
   "/signup",
   "/forgot-password",
+  "/reset-password",
 ] as const;
 
 
@@ -119,6 +120,7 @@ export function buildRobotsTxt(): string {
     "Disallow: /login",
     "Disallow: /signup",
     "Disallow: /forgot-password",
+    "Disallow: /reset-password",
     "Disallow: /api/",
     "",
     `Sitemap: ${SITE_URL}/sitemap.xml`,

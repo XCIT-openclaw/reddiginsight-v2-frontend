@@ -59,6 +59,7 @@ test("builds robots rules for search and AI crawlers", () => {
   assert.ok(robots.includes("Disallow: /login"));
   assert.ok(robots.includes("Disallow: /signup"));
   assert.ok(robots.includes("Disallow: /forgot-password"));
+  assert.ok(robots.includes("Disallow: /reset-password"));
   assert.ok(robots.includes("Disallow: /api/"));
   assert.ok(
     robots.includes("Sitemap: https://reddiginsight.com/sitemap.xml")

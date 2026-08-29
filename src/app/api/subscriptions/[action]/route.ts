@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { shouldRejectPlanChangeAction } from "@/lib/subscription-state";
 import {
+  getCreemPlanProductId,
+  getPlanIdForCreemProductId,
+} from "@/lib/creem-products";
+import {
   cancelCreemSubscription,
   CreemApiError,
   pauseCreemSubscription,
@@ -21,11 +25,6 @@ const SUPPORTED_ACTIONS = new Set([
   "resume",
 ]);
 
-const PRODUCT_TO_PLAN: Record<string, string> = {
-  "prod_22VvlqddlgnK8O0hHY6kLU": "starter",
-  "prod_7ArQ4AAhRf4LVsIGiE8IgJ": "pro",
-};
-
 function getPlanIdFromBody(action: string, body: Record<string, any>): string | null {
   if (action === "update") {
     const item = Array.isArray(body.items) ? body.items[0] : null;
@@ -35,11 +34,13 @@ function getPlanIdFromBody(action: string, body: Record<string, any>): string | 
         : typeof item?.product === "string"
           ? item.product
           : item?.product?.id;
-    return PRODUCT_TO_PLAN[productId] || body.plan_id || body.planId || null;
+    const mappedPlanId = productId ? getPlanIdForCreemProductId(productId) : null;
+    return mappedPlanId || body.plan_id || body.planId || null;
   }
 
   const productId = body.product_id || body.productId;
-  return PRODUCT_TO_PLAN[productId] || body.plan_id || body.planId || null;
+  const mappedPlanId = productId ? getPlanIdForCreemProductId(productId) : null;
+  return mappedPlanId || body.plan_id || body.planId || null;
 }
 
 export async function POST(
@@ -164,6 +165,17 @@ export async function POST(
       );
     }
 
+    const targetProductId = getCreemPlanProductId(targetPlan);
+    if (!targetProductId) {
+      return NextResponse.json(
+        {
+          error: "Subscription products are not configured.",
+          details: "Missing CREEM_STARTER_PRODUCT_ID or CREEM_PRO_PRODUCT_ID.",
+        },
+        { status: 503 }
+      );
+    }
+
     // Atomically reserve the one plan-change slot for this billing cycle.
     const requestedAt = new Date().toISOString();
     const claimPayload: Record<string, unknown> = {
@@ -208,29 +220,13 @@ export async function POST(
       let result: unknown;
 
       if (action === "upgrade") {
-        const productId = body.product_id || body.productId;
-        if (!productId) {
-          await rollbackClaim();
-          return NextResponse.json(
-            { error: "product_id is required" },
-            { status: 400 }
-          );
-        }
         result = await upgradeCreemSubscription(subscriptionId, {
-          productId,
+          productId: targetProductId,
           updateBehavior: "proration-none",
         });
       } else {
-        const items = Array.isArray(body.items) ? body.items : null;
-        if (!items || items.length === 0) {
-          await rollbackClaim();
-          return NextResponse.json(
-            { error: "items is required" },
-            { status: 400 }
-          );
-        }
         result = await updateCreemSubscription(subscriptionId, {
-          items,
+          items: [{ product_id: targetProductId, units: 1 }],
           updateBehavior: "proration-none",
         });
       }

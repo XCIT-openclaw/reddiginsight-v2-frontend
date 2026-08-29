@@ -104,3 +104,26 @@ test("counts retry and scheduled states as active", () => {
     );
   }
 });
+
+test("builds a plan-only request so the server resolves the product ID", () => {
+  const buildPlanChangeRequest = (
+    subscriptionState as { buildPlanChangeRequest?: unknown }
+  ).buildPlanChangeRequest as (
+    request: Parameters<typeof subscriptionState.buildPlanChangeRequest>[0]
+  ) => ReturnType<typeof subscriptionState.buildPlanChangeRequest>;
+
+  assert.deepEqual(
+    buildPlanChangeRequest({
+      currentPlanId: "starter",
+      targetPlanId: "pro",
+      targetProductId: "",
+    }),
+    {
+      endpoint: "/api/subscriptions/upgrade",
+      body: {
+        plan_id: "pro",
+        update_behavior: "proration-none",
+      },
+    }
+  );
+});

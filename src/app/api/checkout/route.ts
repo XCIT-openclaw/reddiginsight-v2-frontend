@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import {
+  PAID_PLAN_CREDITS,
+  PAID_PLAN_NAMES,
+  PaidPlanId,
+  requireCreemProductId,
+  validateCreemProductsConfiguration,
+} from '@/lib/creem-products';
+import {
   findActiveCreemSubscription,
   findCreemCustomerIdByEmail,
   listCreemCustomerSubscriptions,
 } from '@/lib/creem';
-
-const PLAN_PRODUCTS: Record<string, { productId: string; credits: number; name: string }> = {
-  starter: {
-    productId: 'prod_22VvlqddlgnK8O0hHY6kLU',
-    credits: 10,
-    name: 'Starter Plan',
-  },
-  pro: {
-    productId: 'prod_7ArQ4AAhRf4LVsIGiE8IgJ',
-    credits: 30,
-    name: 'Pro Plan',
-  },
-};
 
 function getCreemApiBase(): string {
   return process.env.CREEM_API_URL || 'https://test-api.creem.io/v1';
@@ -30,8 +24,28 @@ export async function POST(request: NextRequest) {
     if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json();
-    const plan = PLAN_PRODUCTS[body.planId];
-    if (!plan) return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
+    const planId = typeof body.planId === 'string' ? body.planId : '';
+    if (planId !== 'starter' && planId !== 'pro') {
+      return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
+    }
+
+    const missingProductVars = validateCreemProductsConfiguration();
+    if (missingProductVars.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Payment products are not configured.',
+          detail: `Missing environment variables: ${missingProductVars.join(', ')}`,
+        },
+        { status: 503 }
+      );
+    }
+
+    const paidPlanId = planId as PaidPlanId;
+    const plan = {
+      productId: requireCreemProductId(paidPlanId),
+      credits: PAID_PLAN_CREDITS[paidPlanId],
+      name: PAID_PLAN_NAMES[paidPlanId],
+    };
 
     const { data: activeSubscription } = await supabase
       .from('subscriptions')

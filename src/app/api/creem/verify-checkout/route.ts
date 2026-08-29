@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-const PLAN_CREDITS: Record<string, number> = {
-  starter: 10,
-  pro: 30,
-};
-
-const PRODUCT_TO_PLAN: Record<string, string> = {
-  "prod_22VvlqddlgnK8O0hHY6kLU": "starter",
-  "prod_7ArQ4AAhRf4LVsIGiE8IgJ": "pro",
-};
+import {
+  getPlanIdForCreemProductId,
+  PAID_PLAN_CREDITS,
+} from "@/lib/creem-products";
 
 /**
  * Verify and process Creem checkout completion from redirect URL params.
@@ -32,9 +26,10 @@ export async function POST(request: NextRequest) {
     }
 
     const paymentId = order_id || checkout_id;
-    const planId = plan_id || PRODUCT_TO_PLAN[product_id] || "starter";
-    const credits = PLAN_CREDITS[planId] || 10;
-    const isSubscription = Boolean(PRODUCT_TO_PLAN[product_id]);
+    const productPlanId = product_id ? getPlanIdForCreemProductId(product_id) : null;
+    const planId = plan_id || productPlanId || "starter";
+    const credits = PAID_PLAN_CREDITS[planId] || 10;
+    const isSubscription = Boolean(productPlanId);
 
     console.log("[verify-checkout] Processing:", { checkout_id, order_id, planId, credits, isSubscription, userId: user.id });
 

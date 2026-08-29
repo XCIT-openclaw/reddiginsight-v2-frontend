@@ -5,6 +5,10 @@ import {
   shouldResetUserAfterTerminalSubscription,
 } from "@/lib/subscription-state";
 import {
+  getPlanIdForCreemProductId,
+  PAID_PLAN_CREDITS,
+} from "@/lib/creem-products";
+import {
   getCreemCheckoutSubscriptionId,
   getCreemCustomerId,
   getCreemRefundAmount,
@@ -17,17 +21,6 @@ import {
   updateCreemCustomerMetadata,
   updateCreemCustomerMetadataByEmail,
 } from "@/lib/creem";
-
-const PLAN_CREDITS: Record<string, number> = {
-  starter: 10,
-  pro: 30,
-};
-
-// Creem product ID to plan name mapping
-const PRODUCT_TO_PLAN: Record<string, string> = {
-  "prod_22VvlqddlgnK8O0hHY6kLU": "starter",
-  "prod_7ArQ4AAhRf4LVsIGiE8IgJ": "pro",
-};
 
 function getEventProductId(eventObject: Record<string, any>): string | null {
   const firstItem = Array.isArray(eventObject.items) ? eventObject.items[0] : null;
@@ -45,7 +38,7 @@ function getEventProductId(eventObject: Record<string, any>): string | null {
 function getEventPlanId(eventObject: Record<string, any>): string | null {
   const productId = getEventProductId(eventObject);
   return (
-    (productId ? PRODUCT_TO_PLAN[productId] || null : null) ||
+    (productId ? getPlanIdForCreemProductId(productId) : null) ||
     (typeof eventObject.metadata?.plan_id === "string" ? eventObject.metadata.plan_id : null) ||
     null
   );
@@ -347,7 +340,7 @@ export async function POST(request: NextRequest) {
         const metadata = eventObject.metadata || {};
         const userId = metadata.user_id;
         const planId = metadata.plan_id || "starter";
-        const credits = Number(metadata.credits) || PLAN_CREDITS[planId] || 0;
+        const credits = Number(metadata.credits) || PAID_PLAN_CREDITS[planId] || 0;
         const orderId = eventObject.order?.id || eventObject.id;
 
         console.log("[Creem Webhook] checkout.completed:", { userId, planId, credits, orderId });
@@ -448,7 +441,10 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
           const productId = typeof eventObject.product === "string" ? eventObject.product : eventObject.product?.id;
-          const eventPlanId = PRODUCT_TO_PLAN[productId] || eventObject.metadata?.plan_id || "starter";
+          const eventPlanId =
+            (productId ? getPlanIdForCreemProductId(productId) : null) ||
+            eventObject.metadata?.plan_id ||
+            "starter";
           const now = new Date().toISOString();
 
           if (!existingSub?.id) {
@@ -457,11 +453,11 @@ export async function POST(request: NextRequest) {
               plan_id: eventPlanId,
               creem_subscription_id: subId,
               status: eventObject.status || "active",
-              credits_per_month: PLAN_CREDITS[eventPlanId] || 0,
+              credits_per_month: PAID_PLAN_CREDITS[eventPlanId] || 0,
               current_period_end: eventObject.current_period_end_date || now,
               updated_at: now,
             }, { onConflict: "user_id" });
-            await syncCustomerMetadata(supabase, eventObject, subUserId, eventPlanId, PLAN_CREDITS[eventPlanId] || 0);
+            await syncCustomerMetadata(supabase, eventObject, subUserId, eventPlanId, PAID_PLAN_CREDITS[eventPlanId] || 0);
             break;
           }
 
@@ -473,8 +469,8 @@ export async function POST(request: NextRequest) {
             ? existingSub.plan_id || eventPlanId
             : eventPlanId;
           const activeCredits = hasScheduledPlanChange
-            ? existingSub.credits_per_month ?? (PLAN_CREDITS[activePlanId] || 0)
-            : PLAN_CREDITS[activePlanId] || 0;
+            ? existingSub.credits_per_month ?? (PAID_PLAN_CREDITS[activePlanId] || 0)
+            : PAID_PLAN_CREDITS[activePlanId] || 0;
 
           const activeUpdate: Record<string, unknown> = {
             plan_id: activePlanId,
@@ -506,7 +502,7 @@ export async function POST(request: NextRequest) {
       case "subscription.paid": {
         const subId = eventObject.id;
         const planId = getEventPlanId(eventObject) || "starter";
-        const subCredits = PLAN_CREDITS[planId] || 0;
+        const subCredits = PAID_PLAN_CREDITS[planId] || 0;
         const paymentId = eventObject.last_transaction_id || eventObject.transaction?.id || eventObject.payment_id || subId;
 
         console.log("[Creem Webhook] subscription.paid:", { subId, planId, subCredits, paymentId });
@@ -657,7 +653,7 @@ export async function POST(request: NextRequest) {
       case "subscription.update": {
         const subId = eventObject.id;
         const targetPlanId = getEventPlanId(eventObject);
-        const targetCredits = targetPlanId ? (PLAN_CREDITS[targetPlanId] ?? null) : null;
+        const targetCredits = targetPlanId ? (PAID_PLAN_CREDITS[targetPlanId] ?? null) : null;
 
         console.log("[Creem Webhook] subscription.update:", { subId, targetPlanId, targetCredits });
 
@@ -682,7 +678,7 @@ export async function POST(request: NextRequest) {
                 plan_id: targetPlanId || "starter",
                 creem_subscription_id: subId,
                 status: "active",
-                credits_per_month: targetCredits ?? PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
+                credits_per_month: targetCredits ?? PAID_PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
                 current_period_start: eventObject.current_period_start_date || null,
                 current_period_end: eventObject.current_period_end_date || now,
                 pending_plan: null,
@@ -692,7 +688,7 @@ export async function POST(request: NextRequest) {
             } else {
               const initialPayload: Record<string, unknown> = {
                 plan_id: targetPlanId || "starter",
-                credits_per_month: targetCredits ?? PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
+                credits_per_month: targetCredits ?? PAID_PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
                 current_period_start: eventObject.current_period_start_date || null,
                 current_period_end: eventObject.current_period_end_date || now,
                 pending_plan: null,
@@ -710,7 +706,7 @@ export async function POST(request: NextRequest) {
         if (isInitialSync) {
           await supabase.from("subscriptions").update({
             plan_id: targetPlanId,
-            credits_per_month: targetCredits ?? PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
+            credits_per_month: targetCredits ?? PAID_PLAN_CREDITS[targetPlanId || "starter"] ?? 0,
             pending_plan: null,
             plan_change_requested_at: null,
             updated_at: now,
@@ -753,8 +749,8 @@ export async function POST(request: NextRequest) {
             existingSub.user_id,
             isUpgrade || isDowngrade ? currentPlan : targetPlanId,
             isUpgrade || isDowngrade
-              ? PLAN_CREDITS[currentPlan] ?? 0
-              : targetCredits ?? PLAN_CREDITS[targetPlanId] ?? 0
+              ? PAID_PLAN_CREDITS[currentPlan] ?? 0
+              : targetCredits ?? PAID_PLAN_CREDITS[targetPlanId] ?? 0
           );
         }
 

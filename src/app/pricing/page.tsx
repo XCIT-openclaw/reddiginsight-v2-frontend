@@ -14,7 +14,6 @@ import { buildPlanChangeRequest, PLAN_CHANGE_FEATURE_ENABLED } from '@/lib/subsc
 
 interface PricingPlan {
   id: string
-  productId?: string
   name: string
   credits?: number
   price: number | string
@@ -36,7 +35,6 @@ interface SubscriptionStatus {
 const plans: PricingPlan[] = [
   {
     id: 'starter',
-    productId: 'prod_22VvlqddlgnK8O0hHY6kLU',
     name: 'Starter',
     credits: 10,
     price: 9.9,
@@ -52,7 +50,6 @@ const plans: PricingPlan[] = [
   },
   {
     id: 'pro',
-    productId: 'prod_7ArQ4AAhRf4LVsIGiE8IgJ',
     name: 'Pro',
     credits: 30,
     price: 29.9,
@@ -132,7 +129,6 @@ export default function PricingPage() {
         },
         body: JSON.stringify({
           planId: plan.id,
-          productId: plan.productId,
           credits: plan.credits,
           amount: plan.price,
         }),
@@ -165,7 +161,7 @@ export default function PricingPage() {
   }
 
   const handlePlanChange = (plan: PricingPlan) => {
-    if (!plan.available || !plan.productId || !user) return
+    if (!plan.available || !user) return
 
     // Temporary production guard: retain the implementation below, but do not expose
     // upgrade/downgrade while the Creem plan-change endpoint returns 403.
@@ -197,7 +193,7 @@ export default function PricingPage() {
     const request = buildPlanChangeRequest({
       currentPlanId: currentPlan as 'starter' | 'pro',
       targetPlanId: plan.id as 'starter' | 'pro',
-      targetProductId: plan.productId || '',
+      targetProductId: '',
     })
     setLoadingPlan(plan.id)
 

@@ -46,12 +46,19 @@ export function buildPlanChangeRequest(
     throw new Error("Invalid subscription plan change direction");
   }
 
+  const body: Record<string, unknown> = {
+    update_behavior: "proration-none",
+  };
+
+  if (input.targetProductId.trim()) {
+    body.product_id = input.targetProductId;
+  } else {
+    body.plan_id = input.targetPlanId;
+  }
+
   return {
     endpoint: "/api/subscriptions/upgrade",
-    body: {
-      product_id: input.targetProductId,
-      update_behavior: "proration-none",
-    },
+    body,
   };
 }
 

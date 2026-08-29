@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   findActiveCreemSubscription,
+  findCreemCustomerIdByEmail,
   getCreemCheckoutSubscriptionId,
   getCreemSubscriptionCustomerEmail,
   getCreemSubscriptionUserId,
@@ -98,4 +99,27 @@ test("does not treat terminal subscriptions as active", () => {
     { id: "sub_expired", status: "expired" },
   ] }), null);
   assert.equal(findActiveCreemSubscription(null), null);
+});
+
+test("treats a customer-not-found 404 as no existing customer", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.CREEM_API_KEY;
+  process.env.CREEM_API_KEY = "test-api-key";
+
+  globalThis.fetch = async () => new Response(
+    JSON.stringify({
+      status: 404,
+      error: "Bad Request",
+      message: ["Customer not found"],
+    }),
+    { status: 404, headers: { "Content-Type": "application/json" } }
+  );
+
+  try {
+    assert.equal(await findCreemCustomerIdByEmail("new-customer@example.com"), null);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.CREEM_API_KEY;
+    else process.env.CREEM_API_KEY = originalApiKey;
+  }
 });

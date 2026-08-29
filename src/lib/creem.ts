@@ -370,10 +370,24 @@ export async function updateCreemCustomerMetadata(
   });
 }
 
+function isCreemCustomerNotFoundError(error: unknown): boolean {
+  if (!(error instanceof CreemApiError) || error.status !== 404) return false;
+
+  return error.details
+    .toLowerCase()
+    .includes("customer not found");
+}
+
 export async function findCreemCustomerIdByEmail(email: string): Promise<string | null> {
-  const data = await creemRequest<Record<string, any> | null>(
-    `/customers?email=${encodeURIComponent(email)}`
-  );
+  let data: Record<string, any> | null;
+  try {
+    data = await creemRequest<Record<string, any> | null>(
+      `/customers?email=${encodeURIComponent(email)}`
+    );
+  } catch (error) {
+    if (isCreemCustomerNotFoundError(error)) return null;
+    throw error;
+  }
 
   if (!data) return null;
   const candidates: unknown[] = [data];

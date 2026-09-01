@@ -1,13 +1,15 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
-import { BarChart3, FileText, CreditCard, LogOut, Menu, X, Settings, MessageSquare, Home } from 'lucide-react'
+import { BarChart3, BookOpen, FileText, CreditCard, LogOut, Menu, X, Settings, MessageSquare, Home } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
 const navigation = [
   { name: 'Home', href: '/', icon: Home },
+  { name: 'How to Use', href: '/how-to-use', icon: BookOpen },
   { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
   { name: 'Reports', href: '/reports', icon: FileText },
   { name: 'Chat', href: '/chat', icon: MessageSquare },
@@ -42,7 +44,7 @@ export function DashboardNav() {
         <div className="flex h-14 sm:h-16 items-center justify-between">
           <div className="flex items-center">
             <Link href="/" className="flex items-center gap-1 sm:gap-2">
-              <img src="/images/logo.png" alt="ReddigInsight" className="h-6 w-6 sm:h-7 sm:w-7" />
+              <Image src="/images/logo.png" alt="ReddigInsight" width={28} height={28} className="h-6 w-6 sm:h-7 sm:w-7" />
               <span className="text-base sm:text-lg font-bold">ReddigInsight</span>
             </Link>
             <div className="hidden md:flex md:ml-10 md:space-x-4">

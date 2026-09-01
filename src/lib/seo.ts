@@ -8,7 +8,7 @@ export const HOME_DESCRIPTION =
   "Analyze Reddit communities with AI to uncover sentiment, trending topics, keywords, and actionable insights. Turn subreddit discussions into clear reports in minutes.";
 
 export interface PublicSeoRoute {
-  path: "/" | "/pricing" | "/privacy" | "/terms";
+  path: "/" | "/how-to-use" | "/pricing" | "/privacy" | "/terms";
   title: string;
   llmsTitle: string;
   description: string;
@@ -38,6 +38,15 @@ export const PUBLIC_SEO_ROUTES: PublicSeoRoute[] = [
     description: HOME_DESCRIPTION,
     changeFrequency: "weekly",
     priority: 1,
+  },
+  {
+    path: "/how-to-use",
+    title: "How to Use AI Reddit Analysis | ReddigInsight",
+    llmsTitle: "How to Use",
+    description:
+      "Learn how to use ReddigInsight step by step: refine a research question in AI chat, generate a subreddit analysis from the dashboard, and review or export the finished report.",
+    changeFrequency: "weekly",
+    priority: 0.8,
   },
   {
     path: "/pricing",
@@ -152,7 +161,7 @@ export function buildLlmsTxt(): string {
     "- Export completed reports for research and collaboration.",
     "",
     "## AI Crawler Guidance",
-    "- Public pages: /, /pricing, /privacy, /terms.",
+    "- Public pages: /, /how-to-use, /pricing, /privacy, /terms.",
     "- Private and account-specific pages are not intended for AI retrieval.",
     "- Respect robots.txt and do not infer user data or private report content from linked URLs.",
     "",

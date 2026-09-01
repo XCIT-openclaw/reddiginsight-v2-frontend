@@ -2,14 +2,14 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
-  let response = NextResponse.next({ request })
+  const response = NextResponse.next({ request })
 
   // Skip auth check for public pages - prevents hanging when Supabase is unreachable
-  const publicPaths = ['/', '/login', '/signup', '/pricing', '/forgot-password', '/api/auth']
+  const publicPaths = ['/', '/login', '/signup', '/pricing', '/forgot-password', '/dashboard', '/reports', '/chat', '/api/auth']
   const isPublicPath = publicPaths.some(path =>
     request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + '/')
   )
-  const protectedPaths = ['/dashboard', '/reports', '/settings', '/chat']
+  const protectedPaths = ['/settings']
   const isProtectedPath = protectedPaths.some(path =>
     request.nextUrl.pathname.startsWith(path)
   )

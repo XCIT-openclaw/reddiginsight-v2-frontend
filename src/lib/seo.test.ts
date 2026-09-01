@@ -24,7 +24,7 @@ test("defines the production site identity and public route inventory", () => {
   );
   assert.deepEqual(
     PUBLIC_SEO_ROUTES.map((route) => route.path),
-    ["/", "/pricing", "/privacy", "/terms"]
+    ["/", "/how-to-use", "/pricing", "/privacy", "/terms"]
   );
 });
 
@@ -35,6 +35,7 @@ test("builds a sitemap from the public route inventory", () => {
   assert.ok(xml.includes('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'));
   assert.ok(xml.includes("<loc>https://reddiginsight.com/</loc>"));
   assert.ok(xml.includes("<loc>https://reddiginsight.com/pricing</loc>"));
+  assert.ok(xml.includes("<loc>https://reddiginsight.com/how-to-use</loc>"));
   assert.ok(xml.includes("<loc>https://reddiginsight.com/privacy</loc>"));
   assert.ok(xml.includes("<loc>https://reddiginsight.com/terms</loc>"));
   assert.ok(xml.includes("<lastmod>2026-08-28T00:00:00.000Z</lastmod>"));
@@ -73,8 +74,9 @@ test("builds an llms.txt overview for AI crawlers", () => {
   assert.ok(llms.includes("> AI-powered Reddit analyzer for subreddit insights"));
   assert.ok(llms.includes("[Home](https://reddiginsight.com/)"));
   assert.ok(llms.includes("[Pricing](https://reddiginsight.com/pricing)"));
+  assert.ok(llms.includes("[How to Use](https://reddiginsight.com/how-to-use)"));
   assert.ok(llms.includes("[Privacy Policy](https://reddiginsight.com/privacy)"));
   assert.ok(llms.includes("[Terms of Service](https://reddiginsight.com/terms)"));
   assert.ok(llms.includes("## AI Crawler Guidance"));
-  assert.ok(llms.includes("Public pages: /, /pricing, /privacy, /terms"));
+  assert.ok(llms.includes("Public pages: /, /how-to-use, /pricing, /privacy, /terms"));
 });

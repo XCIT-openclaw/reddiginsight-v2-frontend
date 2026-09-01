@@ -8,6 +8,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatMessage } from './components/ChatMessage';
+import { AuthRequiredNotice } from '@/components/AuthRequiredNotice';
+import { DashboardNav } from '@/components/DashboardNav';
 import { ChatInput } from './components/ChatInput';
 import { TypingIndicator } from './components/TypingIndicator';
 import { SearchParamsCard } from './components/SearchParamsCard';
@@ -115,7 +117,7 @@ function extractQueryParams(content: string): QueryParams | null {
   }
   
   // Remove markdown code block markers if present
-  let cleanContent = content
+  const cleanContent = content
     .replace(/```json\s*/gi, '')
     .replace(/```\s*/g, '')
     .replace(/`{1,2}([^`]+)`{1,2}/g, '$1');
@@ -266,16 +268,16 @@ function robustExtractJson(text: string): string | null {
 
 // Fix empty keys by position: map to missing required fields (subreddit->keywords->timeRange->limit)
 function fixEmptyKeys(jsonStr: string): string {
-  var required = ['subreddit', 'keywords', 'timeRange', 'limit'];
-  var existing = new Set();
-  for (var r = 0; r < required.length; r++) {
+  const required = ['subreddit', 'keywords', 'timeRange', 'limit'];
+  const existing = new Set();
+  for (let r = 0; r < required.length; r++) {
     if (jsonStr.indexOf('"' + required[r] + '"') !== -1) existing.add(required[r]);
   }
-  var missing = required.filter(function(k) { return !existing.has(k); });
-  var idx = 0;
-  var result = jsonStr.replace(/"":\s*(?:\"([^\"]*)\"|(\d+))/g, function(match, strVal, numVal) {
+  const missing = required.filter(function(k) { return !existing.has(k); });
+  let idx = 0;
+  const result = jsonStr.replace(/"":\s*(?:\"([^\"]*)\"|(\d+))/g, function(match, strVal, numVal) {
     if (idx >= missing.length) return match;
-    var key = missing[idx];
+    const key = missing[idx];
     idx++;
     if (strVal !== undefined) return '\"' + key + '\": \"' + strVal + '\"';
     return '\"' + key + '\": ' + numVal;
@@ -427,13 +429,6 @@ export default function ChatPage() {
       saveMessagesToStorage(messages);
     }
   }, [messages, hydrated]);
-
-  // Redirect to login if not authenticated (same as dashboard)
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [authLoading, user, router]);
 
   // Cleanup abort controller on unmount
   useEffect(() => {
@@ -705,9 +700,26 @@ export default function ChatPage() {
     }
   };
 
-  // Don't render if not authenticated (same as dashboard)
+  // Render a public, informative sign-in prompt instead of a blank page.
   if (!authLoading && !user) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 dark:from-gray-900 dark:via-indigo-900/20 dark:to-purple-900/20">
+        <DashboardNav />
+        <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
+          <AuthRequiredNotice
+            title="Sign in to use the AI research assistant"
+            description="Describe your product idea or research question in chat. The assistant can suggest a subreddit, keywords, time range, and post limit for your analysis."
+            bullets={[
+              'Discuss a market, product idea, or research topic',
+              'Get AI-suggested subreddits and keywords',
+              'Choose a time range and post limit',
+              'Continue to Dashboard with confirmed inputs',
+            ]}
+            returnTo="/chat"
+          />
+        </main>
+      </div>
+    );
   }
 
   return (

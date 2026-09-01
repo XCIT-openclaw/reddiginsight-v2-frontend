@@ -111,7 +111,7 @@ const reportSections = [
 
 const practicalFacts = [
   '1 free credit for your first report',
-  'No credit card required',
+  'No LLM API key required',
   'One credit generates one report',
   'No Reddit API key required',
   'Export completed reports to HTML',

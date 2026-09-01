@@ -16,3 +16,10 @@ test("uses the updated free-credit offer on public pages", () => {
   assert.ok(!home.includes("Start with 1 free credit. No credit card required."));
   assert.ok(!guide.includes("Start with 1 free credit. No credit card required."));
 });
+
+test("uses the clarified home-page API-key requirement", () => {
+  const home = readPage("page.tsx");
+
+  assert.ok(home.includes("'No LLM API key required'"));
+  assert.ok(!home.includes("'No credit card required'"));
+});
